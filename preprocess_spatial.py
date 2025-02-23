@@ -58,6 +58,11 @@ else:
     print("No batch information found; skipping batch correction.")
 
 
-print(adata)
+# Ensure uniqueness and avoid conflicts
+adata.var_names = adata.var['gene_symbol'].astype(str)  # Assign as index
+
+# Drop the column since it's now redundant
+adata.var = adata.var.drop(columns=['gene_symbol'])
+adata.var_names_make_unique()
 # 9. Save the preprocessed data
 adata.write('preprocessed/spatial/visium_breast_cancer.h5ad')
