@@ -66,7 +66,7 @@ def spatial_to_graph(adata, k=5):
     # Node features (gene expression)
     return edge_index.to(device)
 
-edge_index = spatial_to_graph(spatial_data, 5)
+edge_index = spatial_to_graph(spatial_data)
 
 # Define a Gradient Reversal Layer (GRL)
 class GradReverse(Function):
@@ -216,9 +216,6 @@ for epoch in progress_bar:
         3 * torch.ones(N_sc_cellline)
     ]).long().to(device)
     
-    # Randomize domain labels for adversarial training
-    if random.random() < 0.5:
-        domain_labels = domain_labels[torch.randperm(domain_labels.size(0))]
     
     # Train Domain Discriminator
     optimizer_D.zero_grad()
