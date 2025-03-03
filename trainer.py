@@ -128,7 +128,7 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
         adv_losses.append(lambda_total * loss_G_adv.item())
         pred_losses.append(loss_pred.item())
 
-        if (epoch + 1) % 1000 == 0:
+        if (epoch + 1) % 500 == 0:
             # Concatenate all embeddings
             all_z = torch.cat([
                 spatial_z.cpu(),

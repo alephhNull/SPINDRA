@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
+from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, silhouette_score
 
 
 
@@ -69,7 +69,6 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
     
 
     with torch.no_grad():
-
         # Domain labels
         domain_labels_val = torch.cat([
             torch.zeros(spatial_z.size(0)),
@@ -99,6 +98,8 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
     balanced_acc = np.mean(per_domain_acc)
     print(f"Balanced Domain Discriminator Accuracy: {balanced_acc:.4f}")
 
+    sil_score = silhouette_score(features_val.cpu().numpy(), domain_labels_val)
+    print(f"Silhouette Score = {sil_score:.3f}")
 
     # Print the metrics
     print("Bulk Validation Metrics:")

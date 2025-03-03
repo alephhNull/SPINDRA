@@ -63,7 +63,7 @@ def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs):
 
 def plot_all_embeddings(embeddings_history):
     """
-    Plot UMAP embeddings for all collected epochs in a single figure.
+    Plot UMAP embeddings for all collected epochs in a single figure and compute silhouette scores.
 
     Args:
         embeddings_history (list): List of tuples (epoch, all_z, all_labels) for each collected epoch.
@@ -83,6 +83,10 @@ def plot_all_embeddings(embeddings_history):
     domain_names = ['Spatial', 'Bulk', 'SC Tumor', 'SC Cell Line']
 
     for idx, (epoch, all_z, all_labels) in enumerate(embeddings_history):
+        # Compute silhouette score; lower values indicate better domain alignment
+        sil_score = silhouette_score(all_z, all_labels)
+        print(f"Epoch {epoch}: Silhouette Score = {sil_score:.3f}")
+
         # Convert numerical labels to domain names for better legend
         all_labels_str = [domain_names[int(label)] for label in all_labels]
 
@@ -101,7 +105,8 @@ def plot_all_embeddings(embeddings_history):
             ax=axes[idx],
             legend=(idx == 0)  # Show legend only on the first subplot
         )
-        axes[idx].set_title(f'Epoch {epoch}')
+        # Update title with silhouette score
+        axes[idx].set_title(f'Epoch {epoch}, Silhouette: {sil_score:.3f}')
         axes[idx].set_xlabel('UMAP1')
         axes[idx].set_ylabel('UMAP2')
 
@@ -113,6 +118,9 @@ def plot_all_embeddings(embeddings_history):
     if num_plots > 0:
         handles, labels = axes[0].get_legend_handles_labels()
         fig.legend(handles, labels, title='Domain', loc='upper right')
+
+    # Add a suptitle to explain the silhouette score
+    fig.suptitle('UMAP Embeddings with Silhouette Scores\n(Lower silhouette score indicates better domain alignment)', fontsize=16)
 
     plt.tight_layout()
     plt.show()
