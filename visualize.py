@@ -3,6 +3,8 @@ import scanpy as sc
 import matplotlib.pyplot as plt
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 from umap import UMAP
+import seaborn as sns
+
 
 def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs):
     """
@@ -57,3 +59,60 @@ def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs):
         print(f"Davies-Bouldin Index: {davies_bouldin:.4f} (lower is better)")
     else:
         print("Only one cluster detected; cannot compute clustering metrics.")
+
+
+def plot_all_embeddings(embeddings_history):
+    """
+    Plot UMAP embeddings for all collected epochs in a single figure.
+
+    Args:
+        embeddings_history (list): List of tuples (epoch, all_z, all_labels) for each collected epoch.
+    """
+    num_plots = len(embeddings_history)
+    if num_plots == 0:
+        print("No embeddings collected for plotting.")
+        return
+
+    # Set up subplot grid: 5 columns, calculate rows based on number of plots
+    cols = 5
+    rows = (num_plots + cols - 1) // cols
+    fig, axes = plt.subplots(rows, cols, figsize=(15, 3 * rows))
+    axes = axes.flatten()  # Flatten to easily index subplots
+
+    # Domain names for legend
+    domain_names = ['Spatial', 'Bulk', 'SC Tumor', 'SC Cell Line']
+
+    for idx, (epoch, all_z, all_labels) in enumerate(embeddings_history):
+        # Convert numerical labels to domain names for better legend
+        all_labels_str = [domain_names[int(label)] for label in all_labels]
+
+        # Apply UMAP to reduce embeddings to 2D
+        umap_model = UMAP(n_components=2)
+        embedding_2d = umap_model.fit_transform(all_z)
+
+        # Create scatter plot
+        sns.scatterplot(
+            x=embedding_2d[:, 0],
+            y=embedding_2d[:, 1],
+            hue=all_labels_str,
+            palette='Set1',
+            s=3,
+            alpha=0.7,
+            ax=axes[idx],
+            legend=(idx == 0)  # Show legend only on the first subplot
+        )
+        axes[idx].set_title(f'Epoch {epoch}')
+        axes[idx].set_xlabel('UMAP1')
+        axes[idx].set_ylabel('UMAP2')
+
+    # Remove unused subplots
+    for ax in axes[num_plots:]:
+        ax.remove()
+
+    # Add a shared legend to the figure
+    if num_plots > 0:
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(handles, labels, title='Domain', loc='upper right')
+
+    plt.tight_layout()
+    plt.show()

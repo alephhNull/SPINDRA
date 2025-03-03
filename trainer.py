@@ -4,45 +4,59 @@ import torch.nn as nn
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
+from evaluate import evaluate_model
 from models import grad_reverse
 import scanpy as sc
+from umap import UMAP
+import seaborn as sns
 
-def train_model(spatial_encoder, bulk_encoder, sc_encoder, drug_predictor, discriminator, 
-                domain_data, edge_index, device, num_epochs=1000, pretrain_epochs=100, edge_weights=None):
-    # Optimizers with reduced learning rates
+from visualize import plot_all_embeddings
+
+
+def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_predictor, discriminator, 
+                domain_data, device='cpu', num_epochs=1000, pretrain_epochs=100):
+    # Optimizers
     optimizer_G = torch.optim.Adam(
-        list(spatial_encoder.parameters()) + 
-        list(bulk_encoder.parameters()) + 
-        list(sc_encoder.parameters()) + 
-        list(drug_predictor.parameters()),
-        lr=0.0001,
-        weight_decay=1e-4
+        list(spatial_encoder.parameters()) + list(bulk_encoder.parameters()) + 
+        list(sc_encoder.parameters()) + list(tumor_encoder.parameters()) + list(drug_predictor.parameters()),
+        lr=0.0001, weight_decay=1e-4
     )
-    optimizer_D = torch.optim.Adam(
-        discriminator.parameters(), 
-        lr=0.0001,
-        weight_decay=1e-4
-    )
+    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.0001, weight_decay=1e-4)
 
-    # Domain weights for balanced loss
-    N_spatial = domain_data['spatial'][0].size(0)
-    N_bulk = domain_data['bulk'][0].size(0)
-    N_sc_tumor = domain_data['sc_tumor'][0].size(0)
-    N_sc_cellline = domain_data['sc_cellline'][0].size(0)
+    # Domain sizes
+    N_spatial = domain_data['spatial_train'][0].size(0)
+    N_bulk = domain_data['bulk_train'][0].size(0)
+    N_sc_tumor = domain_data['sc_tumor_train'][0].size(0)
+    N_sc_cellline = domain_data['sc_cellline_train'][0].size(0)
     total_N = N_spatial + N_bulk + N_sc_tumor + N_sc_cellline
-    weights = [total_N / (4 * N_spatial), total_N / (4 * N_bulk), 
-               total_N / (4 * N_sc_tumor), total_N / (4 * N_sc_cellline)]
-    weights = torch.tensor(weights).to(device)
 
-    ce_loss = nn.CrossEntropyLoss(weight=weights)
+    all_labels = np.concatenate([
+                np.zeros(N_spatial),         # Spatial: 0
+                np.ones(N_bulk),            # Bulk: 1
+                2 * np.ones(N_sc_tumor),    # SC Tumor: 2
+                3 * np.ones(N_sc_cellline)  # SC Cell Line: 3
+            ])
+    
+    domain_labels = torch.from_numpy(all_labels).long().to(device)
+
+    print(N_spatial, N_bulk, N_sc_tumor, N_sc_cellline)
+
+    # Balancing weights (inverse of domain sizes)
+    class_weights = torch.tensor([
+        total_N / (4 * N_spatial), total_N / (4 * N_bulk),
+        total_N / (4 * N_sc_tumor), total_N / (4 * N_sc_cellline)
+    ]).to(device)
+
+    # Combined class weights
+    ce_loss = nn.CrossEntropyLoss(weight=class_weights)
     bce_loss = nn.BCEWithLogitsLoss()
 
-    # Pretraining phase
+    # Pretraining phase (unchanged)
     print("Pretraining without adversarial loss...")
     for epoch in range(pretrain_epochs):
         optimizer_G.zero_grad()
-        bulk_X, bulk_y = domain_data['bulk']
-        sc_cellline_X, cell_line_y = domain_data['sc_cellline']
+        bulk_X, bulk_y = domain_data['bulk_train']
+        sc_cellline_X, cell_line_y = domain_data['sc_cellline_train']
         bulk_z = bulk_encoder(bulk_X)
         sc_cellline_z = sc_encoder(sc_cellline_X)
         bulk_pred = drug_predictor(bulk_z).squeeze()
@@ -53,43 +67,36 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, drug_predictor, discr
         loss_pred.backward()
         optimizer_G.step()
 
-    # Main training
+    # Main training (mostly unchanged, uses updated ce_loss)
     progress_bar = tqdm(range(num_epochs), desc="Training")
     total_losses = []
     adv_losses = []
     pred_losses = []
-    spatial_pred_history = []  # List to store spatial predictions
+    embeddings_history = []
 
     for epoch in progress_bar:
-        # Schedule the adversarial weight
         p = epoch / num_epochs
-        lambda_total = 0.1
-        lambda_adv = 1.0  # Fixed for grad_reverse, standard in DANN
+        lambda_total = 0.5
+        lambda_adv = 1.0  # For grad_reverse
 
         # Feature extraction
-        spatial_X, _ = domain_data['spatial']
-        bulk_X, bulk_y = domain_data['bulk']
-        sc_tumor_X, _ = domain_data['sc_tumor']
-        sc_cellline_X, cell_line_y = domain_data['sc_cellline']
+        spatial_X, _ = domain_data['spatial_train']
+        bulk_X, bulk_y = domain_data['bulk_train']
+        sc_tumor_X, _ = domain_data['sc_tumor_train']
+        sc_cellline_X, cell_line_y = domain_data['sc_cellline_train']
+        edge_index = domain_data['edge_index_train']
+        edge_weights = domain_data['edge_weights_train']
 
-        spatial_z = spatial_encoder(spatial_X, edge_index, edge_weights) if edge_index is not None else spatial_encoder(spatial_X)
+        spatial_z = spatial_encoder(spatial_X, edge_index, edge_weights)
         bulk_z = bulk_encoder(bulk_X)
-        sc_tumor_z = sc_encoder(sc_tumor_X)
+        sc_tumor_z = tumor_encoder(sc_tumor_X)
         sc_cellline_z = sc_encoder(sc_cellline_X)
-
-        # Domain labels
-        domain_labels = torch.cat([
-            torch.zeros(N_spatial),
-            torch.ones(N_bulk),
-            2 * torch.ones(N_sc_tumor),
-            3 * torch.ones(N_sc_cellline)
-        ]).long().to(device)
 
         # Train Domain Discriminator
         optimizer_D.zero_grad()
         features_detached = torch.cat([spatial_z, bulk_z, sc_tumor_z, sc_cellline_z]).detach()
         domain_preds = discriminator(features_detached)
-        loss_D = ce_loss(domain_preds, domain_labels)
+        loss_D = ce_loss(domain_preds, domain_labels)  # Uses combined weights
         loss_D.backward()
         optimizer_D.step()
 
@@ -98,7 +105,7 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, drug_predictor, discr
         features = torch.cat([spatial_z, bulk_z, sc_tumor_z, sc_cellline_z])
         features_reversed = grad_reverse(features, lambda_adv)
         domain_preds_adv = discriminator(features_reversed)
-        loss_G_adv = ce_loss(domain_preds_adv, domain_labels)
+        loss_G_adv = ce_loss(domain_preds_adv, domain_labels)  # Uses combined weights
         bulk_pred = drug_predictor(bulk_z).squeeze()
         cellline_pred = drug_predictor(sc_cellline_z).squeeze()
         loss_bulk = bce_loss(bulk_pred, bulk_y)
@@ -121,6 +128,18 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, drug_predictor, discr
         adv_losses.append(lambda_total * loss_G_adv.item())
         pred_losses.append(loss_pred.item())
 
+        if (epoch + 1) % 1000 == 0:
+            # Concatenate all embeddings
+            all_z = torch.cat([
+                spatial_z.cpu(),
+                bulk_z.cpu(),
+                sc_tumor_z.cpu(),
+                sc_cellline_z.cpu()
+            ], dim=0).detach().numpy()
+
+            # Store the embeddings, labels, and epoch
+            embeddings_history.append((epoch + 1, all_z, all_labels))
+
         progress_bar.set_postfix({
             'Bulk Acc': f"{bulk_accuracy:.4f}",
             'CellLine Acc': f"{cellline_accuracy:.4f}",
@@ -128,21 +147,13 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, drug_predictor, discr
             'Total Loss': f"{total_loss.item():.4f}",
         })
 
-        # Collect spatial predictions for the last 100 epochs
-    #     if epoch % 100 == 0:
-    #         with torch.no_grad():
-    #             # Set models to eval mode for consistent predictions
-    #             spatial_encoder.eval()
-    #             drug_predictor.eval()
-    #             spatial_z = spatial_encoder(spatial_X, edge_index) if edge_index is not None else spatial_encoder(spatial_X)
-    #             spatial_pred = drug_predictor(spatial_z).squeeze()
-    #             spatial_probs = torch.sigmoid(spatial_pred).cpu().numpy()
-    #             spatial_pred_history.append((epoch, spatial_probs))
-    #             # Switch back to train mode
-    #             spatial_encoder.train()
-    #             drug_predictor.train()
 
-    # Plot losses over time
+    evaluate_model(bulk_encoder=bulk_encoder, sc_encoder=sc_encoder, drug_predictor=drug_predictor, spatial_encoder=spatial_encoder,
+                    tumor_encoder=tumor_encoder, domain_discriminator=discriminator, domain_data=domain_data, device=device)
+    
+    plot_all_embeddings(embeddings_history)
+
+    # Plot losses
     plt.figure(figsize=(12, 8))
     plt.plot(range(num_epochs), total_losses, label='Total Loss (Pred + λ * Adv)', color='blue')
     plt.plot(range(num_epochs), adv_losses, label='Adversarial Loss (λ * Adv)', color='orange')
@@ -153,41 +164,6 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, drug_predictor, discr
     plt.legend()
     plt.grid(True)
     plt.show()
-
-    # num_epochs_to_plot = min(25, len(spatial_pred_history))  # Use all 100 if available
-    # # Optionally reduce to 25 for a 5x5 grid if 100 is too much
-    # # Uncomment the following lines to plot 25 instead:
-    # # selected_indices = np.linspace(0, len(spatial_pred_history) - 1, 25).astype(int)
-    # # spatial_pred_history = [spatial_pred_history[i] for i in selected_indices]
-    # # num_epochs_to_plot = 25
-
-    # num_cols = 5  # For a 10x10 grid
-    # num_rows = (num_epochs_to_plot + num_cols - 1) // num_cols
-    # fig, axes = plt.subplots(num_rows, num_cols, figsize=(10, 10))  # Adjust figsize as needed
-    # axes = axes.flatten()
-
-    # print("Generating spatial heatmaps of predicted drug response probabilities...")
-    # spatial_data = sc.read("preprocessed/spatial/visium_breast_cancer.h5ad")  # Load once
-
-    # for idx, (epoch, probs) in enumerate(spatial_pred_history[:num_epochs_to_plot]):
-    #     spatial_data.obs['predicted_response_prob'] = probs
-    #     sc.pl.spatial(
-    #         spatial_data,
-    #         color=['predicted_response_prob'],
-    #         title=f'Epoch {epoch}',
-    #         cmap='coolwarm',
-    #         library_id='1142243F',
-    #         show=False,  # Don’t display individually
-    #         ax=axes[idx]  # Plot on the specific subplot
-    #     )
-    #     axes[idx].set_title(f'Epoch {epoch}')
-
-    # # Remove unused subplots
-    # for ax in axes[num_epochs_to_plot:]:
-    #     ax.remove()
-
-    # plt.tight_layout()
-    # plt.show()
 
     return spatial_z
 

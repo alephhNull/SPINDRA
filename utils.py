@@ -1,15 +1,10 @@
-import os
+import pandas as pd
+import matplotlib.pyplot as plt
 
-# Define the directory structure
-folders = {
-    "data": ["sc-cell-line", "sc-tumor", "spatial", "bulk"],
-    "preprocessed": ["sc-cell-line", "sc-tumor", "spatial", "bulk"]
-}
+df = pd.read_csv('data/spatial/HumanBreastCancerPatient1_cell_metadata(1).csv')
+coord_x = df['center_x']
+coord_y = df['center_y']
 
-# Create the folders
-for parent, subfolders in folders.items():
-    os.makedirs(parent, exist_ok=True)
-    for subfolder in subfolders:
-        os.makedirs(os.path.join(parent, subfolder), exist_ok=True)
-
-print("Folders created successfully.")
+plt.scatter(coord_x, coord_y, s=0.001)
+print(len(coord_x))
+plt.show()

@@ -31,10 +31,10 @@ class DrugResponsePredictor(nn.Module):
         return self.classifier(x)
 
 class SpatialEncoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim=128, edge_index=None, dropout_rate=0.5):
+    def __init__(self, input_dim, hidden_dim=128, num_heads=4, use_edge=False, dropout_rate=0.5):
         super().__init__()
         self.use_gnn = False
-        if edge_index is not None:
+        if use_edge:
             self.use_gnn = True
             self.conv1 = GCNConv(input_dim, hidden_dim)
             self.conv2 = GCNConv(hidden_dim, hidden_dim)
@@ -42,19 +42,21 @@ class SpatialEncoder(nn.Module):
             self.conv1 = nn.Linear(input_dim, hidden_dim)
             self.conv2 = nn.Linear(hidden_dim, hidden_dim)
         self.dropout = nn.Dropout(dropout_rate)
+        self.fc = nn.Linear(hidden_dim, hidden_dim)
     
     def forward(self, x, edge_index=None, edge_weights=None):
         if self.use_gnn and edge_index is not None:
             # Use edge_weights if provided
-            x = F.relu(self.conv1(x, edge_index, edge_weight=edge_weights) if edge_weights is not None else self.conv1(x, edge_index))
+            x = F.relu(self.conv1(x, edge_index))
             x = self.dropout(x)
-            x = F.relu(self.conv2(x, edge_index, edge_weight=edge_weights) if edge_weights is not None else self.conv2(x, edge_index))
+            x = F.relu(self.conv2(x, edge_index))
             x = self.dropout(x)
         else:
             x = F.relu(self.conv1(x))
             x = self.dropout(x)
             x = F.relu(self.conv2(x))
             x = self.dropout(x)
+        # x = self.fc(x)
         return x
 
 
@@ -66,7 +68,7 @@ class ImprovedSpatialEncoder(nn.Module):
             self.use_gnn = True
             if use_gat:
                 self.conv_layers = nn.ModuleList([
-                    GATConv(input_dim if i == 0 else hidden_dim, hidden_dim, heads=4, dropout=dropout_rate, concat=False)
+                    GATConv(input_dim if i == 0 else hidden_dim, hidden_dim // 4, heads=4, dropout=dropout_rate)
                     for i in range(num_layers)
                 ])
             else:
@@ -82,7 +84,7 @@ class ImprovedSpatialEncoder(nn.Module):
                 nn.Linear(input_dim if i == 0 else hidden_dim, hidden_dim)
                 for i in range(num_layers)
             ])
-            self.residual = nn.Linear(input_dim, hidden_dim) if num_layers > 1 else None
+            self.residual = nn.Linear(input_dim, hidden_dim*4) if num_layers > 1 else None
         
         self.dropout = nn.Dropout(dropout_rate)
     
@@ -129,6 +131,20 @@ class BulkEncoder(nn.Module):
         return x
 
 class SingleCellEncoder(nn.Module):
+    def __init__(self, input_dim, hidden_dim=128, dropout_rate=0.5):
+        super().__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.dropout = nn.Dropout(dropout_rate)  # Dropout layer
+    
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)  # Apply dropout after ReLU
+        x = F.relu(self.fc2(x))
+        x = self.dropout(x)  # Apply dropout after ReLU
+        return x
+
+class TumorEncoder(nn.Module):
     def __init__(self, input_dim, hidden_dim=128, dropout_rate=0.5):
         super().__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
