@@ -159,14 +159,14 @@ class TumorEncoder(nn.Module):
         return x
 
 class DomainDiscriminator(nn.Module):
-    def __init__(self, hidden_dim, dropout_rate=0.5):
+    def __init__(self, hidden_dim=128):
         super().__init__()
         self.classifier = nn.Sequential(
-            nn.Linear(hidden_dim, 64),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Dropout(dropout_rate),  # Dropout added after ReLU
-            nn.Linear(64, 4)  # 4 domains: spatial, bulk, sc_tumor, sc_cellline
+            nn.Linear(hidden_dim, hidden_dim),  # Additional hidden layer
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 4)  # 4 domains
         )
-    
     def forward(self, x):
         return self.classifier(x)

@@ -1,4 +1,5 @@
 # trainer.py
+from sklearn.metrics import silhouette_score
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -6,9 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from evaluate import evaluate_model
 from models import grad_reverse
-import scanpy as sc
-from umap import UMAP
-import seaborn as sns
+
 
 from visualize import plot_all_embeddings
 
@@ -21,7 +20,7 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
         list(sc_encoder.parameters()) + list(tumor_encoder.parameters()) + list(drug_predictor.parameters()),
         lr=0.0001, weight_decay=1e-4
     )
-    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.0001, weight_decay=1e-4)
+    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.0005, weight_decay=1e-4)
 
     # Domain sizes
     N_spatial = domain_data['spatial_train'][0].size(0)

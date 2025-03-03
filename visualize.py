@@ -100,8 +100,8 @@ def plot_all_embeddings(embeddings_history):
             y=embedding_2d[:, 1],
             hue=all_labels_str,
             palette='Set1',
-            s=3,
-            alpha=0.7,
+            s=10,
+            alpha=0.5,
             ax=axes[idx],
             legend=(idx == 0)  # Show legend only on the first subplot
         )
