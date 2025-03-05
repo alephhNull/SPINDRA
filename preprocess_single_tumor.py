@@ -2,7 +2,7 @@ import scanpy as sc
 
 
 # 1. Load the data (keep)
-adata = sc.read_h5ad('data/sc-tumor/gse169246_pac_tissue (1).h5ad')
+adata = sc.read_h5ad('preprocessed/sc-tumor/GSE169246.h5ad')
 print(adata)
 
 # 2. Quality Control (keep)

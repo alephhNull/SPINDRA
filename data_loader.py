@@ -8,7 +8,7 @@ from collections import deque
 
 def load_data(folder='preprocessed'):
     # Load datasets
-    spatial_data = sc.read(f"{folder}/spatial/visium_breast_cancer.h5ad")
+    spatial_data = sc.read(f"{folder}/spatial/GSM6592061_M15.h5ad")
     bulk_data = pd.read_csv(f"{folder}/bulk/bulk_data.csv")
     sc_tumor_data = sc.read(f"{folder}/sc-tumor/GSE169246.h5ad")
     sc_cellline_data = sc.read(f"{folder}/sc-cell-line/GSE117872_HN120.h5ad")
@@ -68,10 +68,12 @@ def prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, de
 
 
     # Split sc_tumor data (unlabeled)
+    sc_tumor_labels = sc_tumor_data.obs['condition'].values
     sc_tumor_indices = range(sc_tumor_data.shape[0])
     sc_tumor_train_idx, sc_tumor_val_idx = train_test_split(
         sc_tumor_indices, 
-        test_size=test_size, 
+        test_size=test_size,
+        stratify=sc_tumor_labels, 
         random_state=42  # For reproducibility
     )
     sc_tumor_train = sc_tumor_data[sc_tumor_train_idx, :]
@@ -93,7 +95,9 @@ def prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, de
 
     # Prepare tensors for sc_tumor data (unlabeled)
     sc_tumor_train_X = torch.tensor(sc_tumor_train.X).float().to(device)
+    sc_tumor_train_y = torch.tensor(sc_tumor_train.obs['condition'] == 'sensitive').float().to(device)
     sc_tumor_val_X = torch.tensor(sc_tumor_val.X).float().to(device)
+    sc_tumor_val_y = torch.tensor(sc_tumor_val.obs['condition'] == 'sensitive').float().to(device)
 
     # Return dictionary with train and validation tensors
     return {
@@ -101,8 +105,8 @@ def prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, de
         'spatial_val': (spatial_val, None),
         'bulk_train': (bulk_train_X, bulk_train_y),
         'bulk_val': (bulk_val_X, bulk_val_y),
-        'sc_tumor_train': (sc_tumor_train_X, None),
-        'sc_tumor_val': (sc_tumor_val_X, None),
+        'sc_tumor_train': (sc_tumor_train_X, sc_tumor_train_y),
+        'sc_tumor_val': (sc_tumor_val_X, sc_tumor_val_y),
         'sc_cellline_train': (sc_cellline_train_X, sc_cellline_train_y),
         'sc_cellline_val': (sc_cellline_val_X, sc_cellline_val_y),
         'edge_index_train': edge_index_train,

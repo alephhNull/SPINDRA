@@ -9,7 +9,7 @@ sc.settings.verbosity = 3
 sc.settings.set_figure_params(dpi=80, facecolor='white')
 
 # Load the .h5ad file
-adata = sc.read_h5ad('data/spatial/visium-1142243F.h5ad')
+adata = sc.read_h5ad('data/spatial/GSM6592061_M15.h5ad')
 
 # Inspect the data
 print(adata)
@@ -40,5 +40,5 @@ print(f"Number of genes without a mapped symbol: {missing}")
 adata = adata[:, ~adata.var['gene_symbol'].isnull()].copy()
 print(adata)
 
-adata.write('./preprocessed/spatial/symbol_corrected.h5ad')
+adata.write('./preprocessed/spatial/GSM6592061_M15_symbol_corrected.h5ad')
 

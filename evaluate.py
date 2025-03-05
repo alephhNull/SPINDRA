@@ -32,7 +32,7 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
     # Extract validation data
     bulk_val_X, bulk_val_y = domain_data['bulk_val']
     sc_cellline_val_X, sc_cellline_val_y = domain_data['sc_cellline_val']
-    sc_tumor_val, _ = domain_data['sc_tumor_val']
+    sc_tumor_val_X, sc_tumor_val_y = domain_data['sc_tumor_val']
     spatial_val, _ = domain_data['spatial_val']
     edge_index_val = domain_data['edge_index_val']
     edge_weights_val = domain_data['edge_weights_val']
@@ -40,7 +40,7 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
     with torch.no_grad():
         spatial_z = spatial_encoder(spatial_val, edge_index_val, edge_weights_val)
         bulk_z = bulk_encoder(bulk_val_X)
-        sc_tumor_z = sc_encoder(sc_tumor_val)
+        sc_tumor_z = tumor_encoder(sc_tumor_val_X)
         sc_cellline_z = sc_encoder(sc_cellline_val_X)
 
     # Evaluate on bulk validation set
@@ -66,6 +66,19 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
         sc_cellline_accuracy = accuracy_score(sc_cellline_val_y_np, sc_cellline_val_pred_labels)
         sc_cellline_auc = roc_auc_score(sc_cellline_val_y_np, sc_cellline_val_probs)
         sc_cellline_f1 = f1_score(sc_cellline_val_y_np, sc_cellline_val_pred_labels)
+
+    
+    # Evaluate on single-cell cell line validation set
+    with torch.no_grad():
+        sc_tumor_val_pred = drug_predictor(sc_tumor_z).squeeze()
+        sc_tumor_val_probs = torch.sigmoid(sc_tumor_val_pred).cpu().numpy()  # Probabilities for AUC
+        sc_tumor_val_pred_labels = (sc_tumor_val_probs > 0.5).astype(int)    # Binary predictions
+        sc_tumor_val_y_np = sc_tumor_val_y.cpu().numpy()                     # True labels as NumPy array
+
+        # Calculate metrics for single-cell
+        sc_tumor_accuracy = accuracy_score(sc_tumor_val_y_np, sc_tumor_val_pred_labels)
+        sc_tumor_auc = roc_auc_score(sc_tumor_val_y_np, sc_tumor_val_probs)
+        sc_tumor_f1 = f1_score(sc_tumor_val_y_np, sc_tumor_val_pred_labels)
     
 
     with torch.no_grad():
@@ -112,6 +125,11 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
     print(f"  AUC: {sc_cellline_auc:.4f}")
     print(f"  F1 Score: {sc_cellline_f1:.4f}")
 
+    print("Single-Cell Tumor Validation Metrics:")
+    print(f"  Accuracy: {sc_tumor_accuracy:.4f}")
+    print(f"  AUC: {sc_tumor_auc:.4f}")
+    print(f"  F1 Score: {sc_tumor_f1:.4f}")
+
     # Return the metrics as a dictionary
     return {
         'bulk': {
@@ -123,6 +141,11 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
             'accuracy': sc_cellline_accuracy,
             'auc': sc_cellline_auc,
             'f1': sc_cellline_f1
+        },
+        'sc_tumor': {
+            'accuracy': sc_tumor_accuracy,
+            'auc': sc_tumor_auc,
+            'f1': sc_tumor_f1
         },
         'balanced_accuracy': balanced_acc
     }

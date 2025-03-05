@@ -56,13 +56,17 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
         optimizer_G.zero_grad()
         bulk_X, bulk_y = domain_data['bulk_train']
         sc_cellline_X, cell_line_y = domain_data['sc_cellline_train']
+        sc_tumor_X, sc_tumor_y = domain_data['sc_tumor_train']
         bulk_z = bulk_encoder(bulk_X)
         sc_cellline_z = sc_encoder(sc_cellline_X)
+        sc_tumor_z = tumor_encoder(sc_tumor_X)
         bulk_pred = drug_predictor(bulk_z).squeeze()
         cellline_pred = drug_predictor(sc_cellline_z).squeeze()
+        tumor_pred = drug_predictor(sc_tumor_z).squeeze()
         loss_bulk = bce_loss(bulk_pred, bulk_y)
         loss_cellline = bce_loss(cellline_pred, cell_line_y)
-        loss_pred = loss_bulk + loss_cellline
+        loss_tumor = bce_loss(tumor_pred, sc_tumor_y)
+        loss_pred = loss_bulk + loss_cellline + loss_tumor
         loss_pred.backward()
         optimizer_G.step()
 
@@ -81,7 +85,7 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
         # Feature extraction
         spatial_X, _ = domain_data['spatial_train']
         bulk_X, bulk_y = domain_data['bulk_train']
-        sc_tumor_X, _ = domain_data['sc_tumor_train']
+        sc_tumor_X, sc_tumor_y = domain_data['sc_tumor_train']
         sc_cellline_X, cell_line_y = domain_data['sc_cellline_train']
         edge_index = domain_data['edge_index_train']
         edge_weights = domain_data['edge_weights_train']
@@ -107,9 +111,11 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
         loss_G_adv = ce_loss(domain_preds_adv, domain_labels)  # Uses combined weights
         bulk_pred = drug_predictor(bulk_z).squeeze()
         cellline_pred = drug_predictor(sc_cellline_z).squeeze()
+        tumor_pred = drug_predictor(sc_tumor_z).squeeze()
         loss_bulk = bce_loss(bulk_pred, bulk_y)
         loss_cellline = bce_loss(cellline_pred, cell_line_y)
-        loss_pred = loss_bulk + loss_cellline
+        loss_tumor = bce_loss(tumor_pred, sc_tumor_y)
+        loss_pred = loss_bulk + loss_cellline + loss_tumor
         total_loss = loss_pred + lambda_total * loss_G_adv
         total_loss.backward()
         optimizer_G.step()
@@ -120,6 +126,8 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
             bulk_accuracy = (bulk_pred_labels == bulk_y).float().mean().item()
             cellline_pred_labels = (torch.sigmoid(cellline_pred) > 0.5).float()
             cellline_accuracy = (cellline_pred_labels == cell_line_y).float().mean().item()
+            tumor_pred_labels = (torch.sigmoid(tumor_pred) > 0.5).float()
+            tumor_accuracy = (tumor_pred_labels == sc_tumor_y).float().mean().item()
             domain_accuracy = (torch.argmax(domain_preds, dim=1) == domain_labels).float().mean().item()
 
         # Log losses
@@ -127,7 +135,9 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
         adv_losses.append(lambda_total * loss_G_adv.item())
         pred_losses.append(loss_pred.item())
 
-        if (epoch + 1) % 500 == 0:
+        epoch_list = [10, 20, 100, 300, 1500]
+
+        if (epoch + 1) in epoch_list:
             # Concatenate all embeddings
             all_z = torch.cat([
                 spatial_z.cpu(),
@@ -136,12 +146,15 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
                 sc_cellline_z.cpu()
             ], dim=0).detach().numpy()
 
+            all_y = np.concatenate([2 * np.ones(N_spatial), bulk_y.cpu(), sc_tumor_y.cpu(), cell_line_y.cpu()])
+
             # Store the embeddings, labels, and epoch
-            embeddings_history.append((epoch + 1, all_z, all_labels))
+            embeddings_history.append((epoch + 1, all_z, all_labels, all_y))
 
         progress_bar.set_postfix({
             'Bulk Acc': f"{bulk_accuracy:.4f}",
             'CellLine Acc': f"{cellline_accuracy:.4f}",
+            'Tumor Acc': f"{tumor_accuracy:.4f}",
             'Domain Acc': f"{domain_accuracy:.4f}",
             'Total Loss': f"{total_loss.item():.4f}",
         })

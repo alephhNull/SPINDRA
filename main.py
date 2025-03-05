@@ -39,7 +39,7 @@ def main():
 
     spatial_z = train_model(
         spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_predictor, discriminator,
-        domain_data, device, num_epochs=3000
+        domain_data, device, num_epochs=1500
     )
 
     edge_index, edge_weights = spatial_to_graph(spatial_data, k=10, device=device)  # Updated to receive edge_weights
