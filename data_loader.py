@@ -11,7 +11,7 @@ def load_data(folder='preprocessed'):
     spatial_data = sc.read(f"{folder}/spatial/GSM6592061_M15.h5ad")
     bulk_data = pd.read_csv(f"{folder}/bulk/bulk_data.csv")
     sc_tumor_data = sc.read(f"{folder}/sc-tumor/GSE169246.h5ad")
-    sc_cellline_data = sc.read(f"{folder}/sc-cell-line/GSE117872_HN120.h5ad")
+    sc_cellline_data = sc.read(f"{folder}/sc-cell-line/GSE131984.h5ad")
 
     # Extract common genes
     common_genes = list(
@@ -55,7 +55,7 @@ def prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, de
     )
 
     # Split single-cell cell line data (labeled)
-    sc_cellline_labels = sc_cellline_data.obs['sensitive'].values
+    sc_cellline_labels = sc_cellline_data.obs['condition'].values
     indices = range(sc_cellline_data.shape[0])
     train_idx, val_idx = train_test_split(
         indices, 
@@ -87,9 +87,9 @@ def prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, de
 
     # Prepare tensors for single-cell cell line data
     sc_cellline_train_X = torch.tensor(sc_cellline_train.X).float().to(device)
-    sc_cellline_train_y = torch.tensor(sc_cellline_train.obs['sensitive'].values).float().to(device)
+    sc_cellline_train_y = torch.tensor(sc_cellline_train.obs['condition'] == 'sensitive').float().to(device)
     sc_cellline_val_X = torch.tensor(sc_cellline_val.X).float().to(device)
-    sc_cellline_val_y = torch.tensor(sc_cellline_val.obs['sensitive'].values).float().to(device)
+    sc_cellline_val_y = torch.tensor(sc_cellline_val.obs['condition'] == 'sensitive').float().to(device)
 
     spatial_train, spatial_val, edge_index_train, edge_index_val, edge_weights_train, edge_weights_val = neighborhood_based_split(spatial_data, k, test_size, device)
 

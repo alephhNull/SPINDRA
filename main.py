@@ -2,21 +2,6 @@
 import random
 import numpy as np
 import torch
-# import os
-# os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-
-# def set_seed(seed=42):
-#     random.seed(seed)
-#     np.random.seed(seed)
-#     torch.manual_seed(seed)
-#     if torch.cuda.is_available():
-#         torch.cuda.manual_seed_all(seed)
-#         torch.backends.cudnn.deterministic = True
-#         torch.backends.cudnn.benchmark = False
-#     torch.use_deterministic_algorithms(True)
-
-# set_seed(42)  #
-
 from data_loader import load_data, prepare_tensors, spatial_to_graph
 from models import SpatialEncoder, BulkEncoder, SingleCellEncoder, DrugResponsePredictor, DomainDiscriminator, ImprovedSpatialEncoder, TumorEncoder, grad_reverse
 from trainer import train_model, predict_spatial
@@ -30,7 +15,7 @@ def main():
     domain_data = prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, device)
 
     spatial_encoder = SpatialEncoder(input_dim=len(common_genes), use_edge=True).to(device)
-    # spatial_encoder = ImprovedSpatialEncoder(input_dim=len(common_genes), edge_index=edge_index, num_layers=2, use_gat=True).to(device)
+    # spatial_encoder = ImprovedSpatialEncoder(input_dim=len(common_genes), num_layers=2, use_gat=True).to(device)
     bulk_encoder = BulkEncoder(input_dim=len(common_genes)).to(device)
     sc_encoder = SingleCellEncoder(input_dim=len(common_genes)).to(device)
     tumor_encoder = TumorEncoder(input_dim=len(common_genes)).to(device)
@@ -39,7 +24,7 @@ def main():
 
     spatial_z = train_model(
         spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_predictor, discriminator,
-        domain_data, device, num_epochs=1500
+        domain_data, device, num_epochs=1500, pretrain_epochs=200
     )
 
     edge_index, edge_weights = spatial_to_graph(spatial_data, k=10, device=device)  # Updated to receive edge_weights

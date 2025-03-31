@@ -7,7 +7,7 @@ import seaborn as sns
 import pandas as pd
 
 
-def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs):
+def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs, filter_malignant=False):
     """
     Parameters:
         spatial_data: an AnnData object containing spatial information.
@@ -15,25 +15,28 @@ def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs):
         spatial_pred_probs: predicted probabilities for the positive class 
                             (values between 0 and 1), as a torch tensor.
     """
-    # 1. Filter to malignant cells only
-    malignant_mask = spatial_data.obs['cell_type'] == 'malignant cell'
-    
-    # Check if there are any malignant cells; if not, exit early
-    if malignant_mask.sum() == 0:
-        print("No malignant cells found in the dataset.")
-        return
-    
-    # Subset the AnnData object and predicted probabilities
-    malignant_data = spatial_data[malignant_mask, :]
-    malignant_pred_probs = spatial_pred_probs[malignant_mask]
+
+    if filter_malignant:
+        # 1. Filter to malignant cells only
+        malignant_mask = spatial_data.obs['cell_type'] == 'malignant cell'
+
+        # Check if there are any malignant cells; if not, exit early
+        if malignant_mask.sum() == 0:
+            print("No malignant cells found in the dataset.")
+            return
+
+        # Subset the AnnData object and predicted probabilities
+        spatial_data = spatial_data[malignant_mask, :]
+        spatial_pred_probs = spatial_pred_probs[malignant_mask]
+        spatial_z = spatial_z[malignant_mask]
 
     # Add probabilities to the subset for spatial visualization
-    malignant_data.obs['predicted_response_prob'] = (malignant_pred_probs.cpu().numpy() > 0.5).astype(int)
+    spatial_data.obs['predicted_response_prob'] = (spatial_pred_probs.cpu().numpy() > 0.5).astype(int)
 
     # Generate the spatial heatmap for malignant cells only
     print("Generating spatial heatmap of predicted drug response probabilities for malignant cells...")
     sc.pl.spatial(
-        malignant_data,
+        spatial_data,
         color=['predicted_response_prob'],
         title='Predicted Drug Response Probability (Malignant Cells Only)',
         cmap='coolwarm',
@@ -44,14 +47,13 @@ def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs):
     # UMAP Visualization
     print("Computing UMAP embedding of encoded features...")
     umap_model = UMAP(n_components=2, random_state=42)
-    spatial_z_malignant = spatial_z[malignant_mask]
-    spatial_z_umap = umap_model.fit_transform(spatial_z_malignant.cpu().numpy())
+    spatial_z_umap = umap_model.fit_transform(spatial_z.cpu().numpy())
 
     plt.figure(figsize=(8, 6))
     scatter = plt.scatter(
         spatial_z_umap[:, 0],
         spatial_z_umap[:, 1],
-        c=malignant_pred_probs.cpu().numpy(),  # Color by probability
+        c=spatial_pred_probs.cpu().numpy(),  # Color by probability
         cmap='coolwarm',
         s=10,
         alpha=0.7

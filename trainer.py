@@ -7,10 +7,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from evaluate import evaluate_model
 from models import grad_reverse
-
-
 from visualize import plot_all_embeddings
 
+def compute_mmd(source, target, sigma=1.0):
+    """Compute MMD with a Gaussian kernel."""
+    source = source / source.norm(dim=1, keepdim=True)  # Normalize embeddings
+    target = target / target.norm(dim=1, keepdim=True)
+    xx = torch.exp(-torch.cdist(source, source)**2 / (2 * sigma**2)).mean()
+    yy = torch.exp(-torch.cdist(target, target)**2 / (2 * sigma**2)).mean()
+    xy = torch.exp(-torch.cdist(source, target)**2 / (2 * sigma**2)).mean()
+    return xx + yy - 2 * xy
 
 def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_predictor, discriminator, 
                 domain_data, device='cpu', num_epochs=1000, pretrain_epochs=100):
@@ -30,57 +36,28 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
     total_N = N_spatial + N_bulk + N_sc_tumor + N_sc_cellline
 
     all_labels = np.concatenate([
-                np.zeros(N_spatial),         # Spatial: 0
-                np.ones(N_bulk),            # Bulk: 1
-                2 * np.ones(N_sc_tumor),    # SC Tumor: 2
-                3 * np.ones(N_sc_cellline)  # SC Cell Line: 3
-            ])
-    
+        np.zeros(N_spatial),         # Spatial: 0
+        np.ones(N_bulk),            # Bulk: 1
+        2 * np.ones(N_sc_tumor),    # SC Tumor: 2
+        3 * np.ones(N_sc_cellline)  # SC Cell Line: 3
+    ])
     domain_labels = torch.from_numpy(all_labels).long().to(device)
 
-    print(N_spatial, N_bulk, N_sc_tumor, N_sc_cellline)
+    print(f"Domain sizes: Spatial={N_spatial}, Bulk={N_bulk}, SC_Tumor={N_sc_tumor}, SC_CellLine={N_sc_cellline}")
 
-    # Balancing weights (inverse of domain sizes)
+    # Balancing weights for domain discriminator
     class_weights = torch.tensor([
         total_N / (4 * N_spatial), total_N / (4 * N_bulk),
         total_N / (4 * N_sc_tumor), total_N / (4 * N_sc_cellline)
     ]).to(device)
 
-    # Combined class weights
     ce_loss = nn.CrossEntropyLoss(weight=class_weights)
     bce_loss = nn.BCEWithLogitsLoss()
 
-    # Pretraining phase (unchanged)
-    print("Pretraining without adversarial loss...")
+    # Pretraining phase with MMD
+    print("Pretraining with MMD...")
     for epoch in range(pretrain_epochs):
         optimizer_G.zero_grad()
-        bulk_X, bulk_y = domain_data['bulk_train']
-        sc_cellline_X, cell_line_y = domain_data['sc_cellline_train']
-        sc_tumor_X, sc_tumor_y = domain_data['sc_tumor_train']
-        bulk_z = bulk_encoder(bulk_X)
-        sc_cellline_z = sc_encoder(sc_cellline_X)
-        sc_tumor_z = tumor_encoder(sc_tumor_X)
-        bulk_pred = drug_predictor(bulk_z).squeeze()
-        cellline_pred = drug_predictor(sc_cellline_z).squeeze()
-        tumor_pred = drug_predictor(sc_tumor_z).squeeze()
-        loss_bulk = bce_loss(bulk_pred, bulk_y)
-        loss_cellline = bce_loss(cellline_pred, cell_line_y)
-        loss_tumor = bce_loss(tumor_pred, sc_tumor_y)
-        loss_pred = loss_bulk + loss_cellline + loss_tumor
-        loss_pred.backward()
-        optimizer_G.step()
-
-    # Main training (mostly unchanged, uses updated ce_loss)
-    progress_bar = tqdm(range(num_epochs), desc="Training")
-    total_losses = []
-    adv_losses = []
-    pred_losses = []
-    embeddings_history = []
-
-    for epoch in progress_bar:
-        p = epoch / num_epochs
-        lambda_total = 0.5
-        lambda_adv = 1.0  # For grad_reverse
 
         # Feature extraction
         spatial_X, _ = domain_data['spatial_train']
@@ -95,20 +72,7 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
         sc_tumor_z = tumor_encoder(sc_tumor_X)
         sc_cellline_z = sc_encoder(sc_cellline_X)
 
-        # Train Domain Discriminator
-        optimizer_D.zero_grad()
-        features_detached = torch.cat([spatial_z, bulk_z, sc_tumor_z, sc_cellline_z]).detach()
-        domain_preds = discriminator(features_detached)
-        loss_D = ce_loss(domain_preds, domain_labels)  # Uses combined weights
-        loss_D.backward()
-        optimizer_D.step()
-
-        # Train Generators
-        optimizer_G.zero_grad()
-        features = torch.cat([spatial_z, bulk_z, sc_tumor_z, sc_cellline_z])
-        features_reversed = grad_reverse(features, lambda_adv)
-        domain_preds_adv = discriminator(features_reversed)
-        loss_G_adv = ce_loss(domain_preds_adv, domain_labels)  # Uses combined weights
+        # Prediction loss
         bulk_pred = drug_predictor(bulk_z).squeeze()
         cellline_pred = drug_predictor(sc_cellline_z).squeeze()
         tumor_pred = drug_predictor(sc_tumor_z).squeeze()
@@ -116,7 +80,65 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
         loss_cellline = bce_loss(cellline_pred, cell_line_y)
         loss_tumor = bce_loss(tumor_pred, sc_tumor_y)
         loss_pred = loss_bulk + loss_cellline + loss_tumor
-        total_loss = loss_pred + lambda_total * loss_G_adv
+
+        # MMD loss for domain alignment
+        lambda_mmd = 1.0  # Hyperparameter for MMD weight
+        loss_align = (
+            compute_mmd(spatial_z, bulk_z) +
+            compute_mmd(spatial_z, sc_tumor_z) +
+            compute_mmd(spatial_z, sc_cellline_z) +
+            compute_mmd(bulk_z, sc_tumor_z) +
+            compute_mmd(bulk_z, sc_cellline_z) +
+            compute_mmd(sc_tumor_z, sc_cellline_z)
+        )
+
+        # Total pretraining loss
+        total_pretrain_loss = loss_pred + lambda_mmd * loss_align
+        total_pretrain_loss.backward()
+        optimizer_G.step()
+
+    # Main training with adversarial alignment
+    progress_bar = tqdm(range(num_epochs), desc="Training")
+    total_losses = []
+    adv_losses = []
+    pred_losses = []
+    embeddings_history = []
+
+    for epoch in progress_bar:
+        lambda_adv = 0.1  # Hyperparameter for adversarial loss weight
+
+        # Feature extraction
+        spatial_z = spatial_encoder(spatial_X, edge_index, edge_weights)
+        bulk_z = bulk_encoder(bulk_X)
+        sc_tumor_z = tumor_encoder(sc_tumor_X)
+        sc_cellline_z = sc_encoder(sc_cellline_X)
+
+        # Train Domain Discriminator
+        optimizer_D.zero_grad()
+        features_detached = torch.cat([spatial_z, bulk_z, sc_tumor_z, sc_cellline_z]).detach()
+        domain_preds = discriminator(features_detached)
+        loss_D = ce_loss(domain_preds, domain_labels)
+        loss_D.backward()
+        optimizer_D.step()
+
+        # Train Generators
+        optimizer_G.zero_grad()
+        features = torch.cat([spatial_z, bulk_z, sc_tumor_z, sc_cellline_z])
+        features_reversed = grad_reverse(features)  # Gradient reversal
+        domain_preds_adv = discriminator(features_reversed)
+        loss_G_adv = ce_loss(domain_preds_adv, domain_labels)
+
+        # Prediction loss
+        bulk_pred = drug_predictor(bulk_z).squeeze()
+        cellline_pred = drug_predictor(sc_cellline_z).squeeze()
+        tumor_pred = drug_predictor(sc_tumor_z).squeeze()
+        loss_bulk = bce_loss(bulk_pred, bulk_y)
+        loss_cellline = bce_loss(cellline_pred, cell_line_y)
+        loss_tumor = bce_loss(tumor_pred, sc_tumor_y)
+        loss_pred = loss_bulk + loss_cellline + loss_tumor
+
+        # Total loss for generators
+        total_loss = loss_pred + lambda_adv * loss_G_adv
         total_loss.backward()
         optimizer_G.step()
 
@@ -132,23 +154,13 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
 
         # Log losses
         total_losses.append(total_loss.item())
-        adv_losses.append(lambda_total * loss_G_adv.item())
+        adv_losses.append(lambda_adv * loss_G_adv.item())
         pred_losses.append(loss_pred.item())
 
-        epoch_list = [10, 20, 100, 300, 1500]
-
+        epoch_list = [10, 50, 100, 500, 1500]
         if (epoch + 1) in epoch_list:
-            # Concatenate all embeddings
-            all_z = torch.cat([
-                spatial_z.cpu(),
-                bulk_z.cpu(),
-                sc_tumor_z.cpu(),
-                sc_cellline_z.cpu()
-            ], dim=0).detach().numpy()
-
+            all_z = torch.cat([spatial_z.cpu(), bulk_z.cpu(), sc_tumor_z.cpu(), sc_cellline_z.cpu()], dim=0).detach().numpy()
             all_y = np.concatenate([2 * np.ones(N_spatial), bulk_y.cpu(), sc_tumor_y.cpu(), cell_line_y.cpu()])
-
-            # Store the embeddings, labels, and epoch
             embeddings_history.append((epoch + 1, all_z, all_labels, all_y))
 
         progress_bar.set_postfix({
@@ -159,16 +171,16 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
             'Total Loss': f"{total_loss.item():.4f}",
         })
 
-
-    evaluate_model(bulk_encoder=bulk_encoder, sc_encoder=sc_encoder, drug_predictor=drug_predictor, spatial_encoder=spatial_encoder,
-                    tumor_encoder=tumor_encoder, domain_discriminator=discriminator, domain_data=domain_data, device=device)
-    
-    plot_all_embeddings(embeddings_history)
+    # Evaluation and visualization
+    evaluate_model(bulk_encoder=bulk_encoder, sc_encoder=sc_encoder, drug_predictor=drug_predictor, 
+                   spatial_encoder=spatial_encoder, tumor_encoder=tumor_encoder, 
+                   domain_discriminator=discriminator, domain_data=domain_data, device=device)
+    # plot_all_embeddings(embeddings_history)
 
     # Plot losses
     plt.figure(figsize=(12, 8))
-    plt.plot(range(num_epochs), total_losses, label='Total Loss (Pred + λ * Adv)', color='blue')
-    plt.plot(range(num_epochs), adv_losses, label='Adversarial Loss (λ * Adv)', color='orange')
+    plt.plot(range(num_epochs), total_losses, label='Total Loss (Pred + Adv)', color='blue')
+    plt.plot(range(num_epochs), adv_losses, label='Adversarial Loss (λ * Adv)', color='yellow')
     plt.plot(range(num_epochs), pred_losses, label='Prediction Loss', color='green')
     plt.title('Generator Losses Over Time')
     plt.xlabel('Epoch')
@@ -179,7 +191,6 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
 
     return spatial_z
 
-# predict_spatial function remains unchanged
 def predict_spatial(spatial_encoder, drug_predictor, spatial_X, edge_index, edge_weights=None):
     spatial_encoder.eval()
     drug_predictor.eval()
