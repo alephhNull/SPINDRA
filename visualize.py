@@ -7,7 +7,7 @@ import seaborn as sns
 import pandas as pd
 
 
-def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs, filter_malignant=False):
+def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs, filter_malignant=False, library_id=None):
     """
     Parameters:
         spatial_data: an AnnData object containing spatial information.
@@ -40,7 +40,7 @@ def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs, filter_m
         color=['predicted_response_prob'],
         title='Predicted Drug Response Probability (Malignant Cells Only)',
         cmap='coolwarm',
-        library_id='GSM6592061_M15',
+        library_id=library_id,
         show=True
     )
 

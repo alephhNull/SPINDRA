@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from data_loader import load_data, prepare_tensors, spatial_to_graph
 from models import SpatialEncoder, BulkEncoder, SingleCellEncoder, DrugResponsePredictor, DomainDiscriminator, ImprovedSpatialEncoder, TumorEncoder, grad_reverse
+from perform_deg import perform_deg
 from trainer import train_model, predict_spatial
 from visualize import visualize_and_evaluate
 
@@ -35,7 +36,9 @@ def main():
     print(f"Total spatial cells: {spatial_pred_labels.shape[0]}")
     print(f"Sensitive cells: {spatial_pred_labels.sum().item()}")
 
-    visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs)
+    visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs, library_id='GSM6592061_M15')
+    perform_deg(spatial_data, 'preprocessed/spatial/GSM6592061_M15_symbol_corrected.h5ad')
+
 
 if __name__ == "__main__":
     main()
