@@ -7,6 +7,8 @@ from models import SpatialEncoder, BulkEncoder, SingleCellEncoder, DrugResponseP
 from perform_deg import perform_deg
 from trainer import train_model, predict_spatial
 from visualize import visualize_and_evaluate
+from cell_communication import analyze_cell_communication
+
 
 def main():
     # Device
@@ -25,7 +27,7 @@ def main():
 
     spatial_z = train_model(
         spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_predictor, discriminator,
-        domain_data, device, num_epochs=1500, pretrain_epochs=200
+        domain_data, device, num_epochs=1500, pretrain_epochs=10
     )
 
     edge_index, edge_weights = spatial_to_graph(spatial_data, k=10, device=device)  # Updated to receive edge_weights
@@ -38,6 +40,7 @@ def main():
 
     visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs, library_id='GSM6592061_M15')
     perform_deg(spatial_data, 'preprocessed/spatial/GSM6592061_M15_symbol_corrected.h5ad')
+    analyze_cell_communication(spatial_data, spatial_pred_probs.cpu().numpy())
 
 
 if __name__ == "__main__":
