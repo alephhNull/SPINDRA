@@ -84,10 +84,10 @@ if __name__ == "__main__":
     os.makedirs('preprocessed/spatial', exist_ok=True)
 
     # Preprocess data
-    # preprocess_bulk(args.bulk_exp, args.bulk_label)
-    # preprocess_visium_spatial(args.spatial, args.library_id)
-    # preprocess_tumor(args.sc_tumor)
-    # preprocess_celline(args.sc_cellline)
+    preprocess_bulk(args.bulk_exp, args.bulk_label)
+    preprocess_visium_spatial(args.spatial, args.library_id)
+    preprocess_tumor(args.sc_tumor)
+    preprocess_celline(args.sc_cellline)
     
     # Run main function with args object
     main(args)

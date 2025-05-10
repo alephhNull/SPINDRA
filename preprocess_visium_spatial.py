@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from gene_symbol_correction import correct_gene_symbols
-
+import h5py
 
 def preprocess_visium_spatial(file_name, library_id):
     adata = correct_gene_symbols(f'data/spatial/{file_name}')
@@ -60,8 +60,8 @@ def preprocess_visium_spatial(file_name, library_id):
 
     print('Visium Spatial adata final shape:', adata.shape)
 
-    new_file_path = f'preprocessed/sc-cell-line/{file_name}'
+    new_file_path = f'preprocessed/spatial/{file_name}'
     print(f'Preprocessed Visium spatial file saved at {new_file_path}')
 
     # 9. Save the preprocessed data
-    adata.write(new_file_path)
+
