@@ -6,13 +6,15 @@ from sklearn.model_selection import train_test_split
 from scipy.spatial import cKDTree
 from collections import deque
 
-def load_data(folder='preprocessed'):
+def load_data(spatial_file_name, sc_tumor_file_name, sc_cellline_file_name):
     # Load datasets
-    spatial_data = sc.read(f"{folder}/spatial/GSM6592061_M15.h5ad")
-    bulk_data = pd.read_csv(f"{folder}/bulk/bulk_data.csv")
-    sc_tumor_data = sc.read(f"{folder}/sc-tumor/GSE169246.h5ad")
-    sc_cellline_data = sc.read(f"{folder}/sc-cell-line/GSE131984.h5ad")
+    spatial_data = sc.read(f"preprocessed/spatial/{spatial_file_name}")
+    bulk_data = pd.read_csv(f"preprocessed/bulk/bulk_data.csv")
+    sc_tumor_data = sc.read(f"preprocessed/sc-tumor/{sc_tumor_file_name}")
+    sc_cellline_data = sc.read(f"preprocessed/sc-cell-line/{sc_cellline_file_name}")
 
+    print(f'Shapes of preprocessed data:\n Spatial: {spatial_data.shape}, Bulk: {bulk_data.shape}, Single-Cell Tumor: {sc_tumor_data.shape}, Single-Cell Cellline: {sc_cellline_data.shape}')
+    
     # Extract common genes
     common_genes = list(
         set(spatial_data.var_names) &
@@ -20,6 +22,8 @@ def load_data(folder='preprocessed'):
         set(sc_tumor_data.var_names) &
         set(sc_cellline_data.var_names)
     )
+
+    print(f'Length of common genes: {len(common_genes)}')
 
     # Subset data to common genes
     spatial_data = spatial_data[:, common_genes]

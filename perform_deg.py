@@ -8,7 +8,6 @@ import seaborn as sns
 def perform_deg(spatial_data, original_adata_path):
 
     original_adata = sc.read(original_adata_path)
-    original_adata.var_names = original_adata.var['gene_symbol']
 
     # original_adata.var_names_make_unique()
     original_adata = original_adata[spatial_data.obs.index,:]
