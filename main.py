@@ -23,7 +23,6 @@ def main(args):
     spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, common_genes = load_data(
         args.spatial, args.sc_tumor, args.sc_cellline
     )
-    print(spatial_data)
     domain_data = prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, device, k=args.k)
 
     spatial_encoder = SpatialEncoder(input_dim=len(common_genes), use_edge=True).to(device)
@@ -48,7 +47,8 @@ def main(args):
     print(f"Sensitive cells: {spatial_pred_labels.sum().item()}")
 
     visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs, library_id=args.library_id)
-    perform_deg(spatial_data, f'preprocessed/spatial/{args.spatial.split(".")[0]}_symbol_corrected.h5ad')
+    filename_without_extension = args.spatial.split('/')[-1].split('.')[0]
+    perform_deg(spatial_data, f'preprocessed/spatial/{filename_without_extension}_symbol_corrected.h5ad')
     analyze_cell_communication(spatial_data, spatial_pred_probs.cpu().numpy())
 
 
