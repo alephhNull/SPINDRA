@@ -2,7 +2,7 @@ import scanpy as sc
 import mygene
 
 
-def correct_gene_symbols(file_path):
+def correct_gene_symbols(file_path, data_type):
     # Increase verbosity to see detailed logs
     sc.settings.verbosity = 3
 
@@ -46,10 +46,7 @@ def correct_gene_symbols(file_path):
 
     print('Gene symbol correction done.')
 
-    path_array = file_path.split('/')
-    data_type = path_array[1]
-    file_name = path_array[2].split('.')[0]
-
+    file_name = file_path.split('/')[-1].split('.')[0]
     new_file_name = file_name + '_symbol_corrected.h5ad'
     new_file_path = '/'.join(['preprocessed', data_type, new_file_name])
 

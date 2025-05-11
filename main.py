@@ -23,6 +23,7 @@ def main(args):
     spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, common_genes = load_data(
         args.spatial, args.sc_tumor, args.sc_cellline
     )
+    print(spatial_data)
     domain_data = prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, device, k=args.k)
 
     spatial_encoder = SpatialEncoder(input_dim=len(common_genes), use_edge=True).to(device)
@@ -56,16 +57,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Drug Response Prediction from Spatial Transcriptomics Data')
     
     # Add arguments with default values
-    parser.add_argument('--bulk_exp', type=str, default='ALL_expression.csv', 
-                       help='Bulk expression data file name')
-    parser.add_argument('--bulk_label', type=str, default='ALL_label_binary_wf.csv', 
-                       help='Bulk label data file name')
-    parser.add_argument('--sc_tumor', type=str, default='gse169246.h5ad', 
-                       help='Single-cell tumor data file name')
-    parser.add_argument('--sc_cellline', type=str, default='GSE131984.h5ad', 
-                       help='Single-cell cell line data file name')
-    parser.add_argument('--spatial', type=str, default='GSM6592061_M15.h5ad', 
-                       help='Visium spatial data file name')
+    parser.add_argument('--bulk_exp', type=str, default='data/bulk/ALL_expression.csv', 
+                       help='Bulk expression data file path')
+    parser.add_argument('--bulk_label', type=str, default='data/bulk/ALL_label_binary_wf.csv', 
+                       help='Bulk label data file path')
+    parser.add_argument('--sc_tumor', type=str, default='data/sc-tumor/gse169246.h5ad', 
+                       help='Single-cell tumor data file path')
+    parser.add_argument('--sc_cellline', type=str, default='data/sc-cell-line/GSE131984.h5ad', 
+                       help='Single-cell cell line data file path')
+    parser.add_argument('--spatial', type=str, default='data/spatial/GSM6592061_M15.h5ad', 
+                       help='Visium spatial data file path')
     parser.add_argument('--library_id', type=str, default='GSM6592061_M15', 
                        help='Library ID for the spatial data')
     parser.add_argument('--num_epochs', type=int, default=1500, 

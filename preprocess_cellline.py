@@ -1,9 +1,9 @@
 import scanpy as sc
 
-def preprocess_celline(file_name):
+def preprocess_celline(file_path):
 
     # 1. Load the data (keep)
-    adata = sc.read_h5ad(f'data/sc-cell-line/{file_name}')
+    adata = sc.read_h5ad(file_path)
     print("Shape of Oringial Single-Cell cellline adata:", adata.shape)
 
     # 2. Quality Control (keep)
@@ -22,6 +22,7 @@ def preprocess_celline(file_name):
     
     print('Single-Cell Celline  adata final shape:', adata.shape)
 
+    file_name = file_path.split('/')[-1]
     new_file_path = f'preprocessed/sc-cell-line/{file_name}'
 
     # 9. Save the preprocessed data

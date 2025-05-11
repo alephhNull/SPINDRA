@@ -3,15 +3,18 @@ import torch
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from scipy.spatial import cKDTree
 from collections import deque
 
-def load_data(spatial_file_name, sc_tumor_file_name, sc_cellline_file_name):
+def load_data(spatial_file_path, sc_tumor_file_path, sc_cellline_file_path):
     # Load datasets
-    spatial_data = sc.read(f"preprocessed/spatial/{spatial_file_name}")
+    spatial_file_name = spatial_file_path.split('/')[-1]
+    sc_tumor_file_name = sc_tumor_file_path.split('/')[-1]
+    sc_cellline_file_name = sc_cellline_file_path.split('/')[-1]
+
+    spatial_data = sc.read(f'preprocessed/spatial/{spatial_file_name}')
     bulk_data = pd.read_csv(f"preprocessed/bulk/bulk_data.csv")
-    sc_tumor_data = sc.read(f"preprocessed/sc-tumor/{sc_tumor_file_name}")
-    sc_cellline_data = sc.read(f"preprocessed/sc-cell-line/{sc_cellline_file_name}")
+    sc_tumor_data = sc.read(f'preprocessed/sc-tumor/{sc_tumor_file_name}')
+    sc_cellline_data = sc.read(f'preprocessed/sc-cell-line/{sc_cellline_file_name}')
 
     print(f'Shapes of preprocessed data:\n Spatial: {spatial_data.shape}, Bulk: {bulk_data.shape}, Single-Cell Tumor: {sc_tumor_data.shape}, Single-Cell Cellline: {sc_cellline_data.shape}')
     

@@ -6,8 +6,8 @@ import numpy as np
 from gene_symbol_correction import correct_gene_symbols
 import h5py
 
-def preprocess_visium_spatial(file_name, library_id):
-    adata = correct_gene_symbols(f'data/spatial/{file_name}')
+def preprocess_visium_spatial(file_path, library_id):
+    adata = correct_gene_symbols(file_path, 'spatial')
     adata = sc.read_h5ad('preprocessed/spatial/GSM6592061_M15_symbol_corrected.h5ad')
     print("Shape of Oringial Visium Spatial adata:", adata.shape)
 
@@ -59,8 +59,11 @@ def preprocess_visium_spatial(file_name, library_id):
 
 
     print('Visium Spatial adata final shape:', adata.shape)
-
+    
+    file_name = file_path.split('/')[-1]
     new_file_path = f'preprocessed/spatial/{file_name}'
+    adata.write(new_file_path)
+    
     print(f'Preprocessed Visium spatial file saved at {new_file_path}')
 
     # 9. Save the preprocessed data

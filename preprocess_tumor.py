@@ -1,9 +1,9 @@
 import scanpy as sc
 
 
-def preprocess_tumor(file_name):
+def preprocess_tumor(file_path):
     # 1. Load the data (keep)
-    adata = sc.read_h5ad(f'data/sc-tumor/{file_name}')
+    adata = sc.read_h5ad(file_path)
     print("Shape of Oringial Single-Cell tumor adata:", adata.shape)
 
     # 2. Quality Control (keep)
@@ -23,7 +23,8 @@ def preprocess_tumor(file_name):
         adata.raw.var.drop("_index", axis=1, inplace=True)
 
     print('Single Cell Tumor adata final shape:', adata.shape)
-
+    
+    file_name = file_path.split('/')[-1]
     new_file_path = f'preprocessed/sc-tumor/{file_name}'
 
     # 9. Save the preprocessed data
