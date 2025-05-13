@@ -65,9 +65,9 @@ if __name__ == "__main__":
                        help='Single-cell tumor data file path')
     parser.add_argument('--sc_cellline', type=str, default='data/sc-cell-line/GSE131984.h5ad', 
                        help='Single-cell cell line data file path')
-    parser.add_argument('--spatial', type=str, default='data/spatial/GSM6592061_M15.h5ad', 
+    parser.add_argument('--spatial', type=str, default='data/spatial/visium-1142243F.h5ad', 
                        help='Visium spatial data file path')
-    parser.add_argument('--library_id', type=str, default='GSM6592061_M15', 
+    parser.add_argument('--library_id', type=str, default='1142243F', 
                        help='Library ID for the spatial data')
     parser.add_argument('--num_epochs', type=int, default=1500, 
                        help='Number of training epochs')
@@ -83,12 +83,14 @@ if __name__ == "__main__":
     os.makedirs('preprocessed/sc-cell-line', exist_ok=True)
     os.makedirs('preprocessed/sc-tumor', exist_ok=True)
     os.makedirs('preprocessed/spatial', exist_ok=True)
+    os.makedirs('output', exist_ok=True)
+
 
     # Preprocess data
-    preprocess_bulk(args.bulk_exp, args.bulk_label)
-    preprocess_visium_spatial(args.spatial, args.library_id)
-    preprocess_tumor(args.sc_tumor)
-    preprocess_celline(args.sc_cellline)
+    # preprocess_bulk(args.bulk_exp, args.bulk_label)
+    # preprocess_visium_spatial(args.spatial, args.library_id)
+    # preprocess_tumor(args.sc_tumor)
+    # preprocess_celline(args.sc_cellline)
     
     # Run main function with args object
     main(args)

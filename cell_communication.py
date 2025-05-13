@@ -78,7 +78,7 @@ def analyze_cell_communication(
             print(f"No ligand–receptor interactions found for '{celltype_key}'. Skipping plotting/saving.")
         lr_df = means.join(pvals, rsuffix="_pval").reset_index()
     # Save full interaction table
-    outfile = f"ligrec_{celltype_key}.csv"
+    outfile = f"output/ligrec_{celltype_key}.csv"
     lr_df.to_csv(outfile, index=False)
     print(f"Saved ligand–receptor interactions table to {outfile}")
     # Plotting: wrap in try to catch empty plots

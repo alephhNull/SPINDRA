@@ -29,7 +29,7 @@ def perform_deg(spatial_data, original_adata_path):
     deg_results = sc.get.rank_genes_groups_df(adata, group='Resistant')  # Results for group2 vs group1
 
     print(deg_results.head(50))
-    deg_results.to_csv('deg_result_visium.csv', index=False)
+    deg_results.to_csv('output/deg_result_visium.csv', index=False)
 
     # Calculate -log10 adjusted p-values
     deg_results['-log10_pval'] = -np.log10(deg_results['pvals_adj'])
