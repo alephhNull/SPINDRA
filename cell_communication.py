@@ -89,6 +89,7 @@ def analyze_cell_communication(
             figsize=figsize,
             show=True
         )
+        plt.savefig('output/cell_communication.pdf', format='pdf')
         plt.show()
     except ValueError as e:
         print(f"Plotting skipped for '{celltype_key}': {e}")

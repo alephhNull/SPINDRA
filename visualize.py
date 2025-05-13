@@ -43,6 +43,7 @@ def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs, filter_m
         library_id=library_id,
         show=True
     )
+    plt.savefig('output/prediction_heatmap.pdf', format='pdf')
 
     # UMAP Visualization
     print("Computing UMAP embedding of encoded features...")
@@ -62,6 +63,7 @@ def visualize_and_evaluate(spatial_data, spatial_z, spatial_pred_probs, filter_m
     plt.title('UMAP of Spatial Encoded Features (Colored by Response Probability)')
     plt.xlabel('UMAP1')
     plt.ylabel('UMAP2')
+    plt.savefig('output/umap_embedding.pdf', format='pdf')
     plt.show()
 
     # 3. Cluster Evaluation: Convert probabilities to binary labels (threshold = 0.5) (unchanged)

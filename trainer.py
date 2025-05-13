@@ -187,6 +187,7 @@ def train_model(spatial_encoder, bulk_encoder, sc_encoder, tumor_encoder, drug_p
     plt.ylabel('Loss')
     plt.legend()
     plt.grid(True)
+    plt.savefig('output/loss_over_time.pdf', format='pdf')
     plt.show()
 
     return spatial_z

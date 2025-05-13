@@ -81,5 +81,6 @@ def perform_deg(spatial_data, original_adata_path):
     plt.ylabel('-log10 Adjusted P-value')
     plt.title('Volcano Plot: Sensitive vs Resistant')
     plt.legend(title='Significance')
+    plt.savefig('output/deg_result.pdf', format='pdf')
     plt.show()
 
