@@ -4,6 +4,11 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from collections import deque
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+import seaborn as sns
+import os
+import umap
 
 def load_data(spatial_file_path, sc_tumor_file_path, sc_cellline_file_path):
     # Load datasets
@@ -61,7 +66,96 @@ def prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, de
         random_state=42  # For reproducibility
     )
 
+    save_dir = "figures_umap"
+    os.makedirs(save_dir, exist_ok=True)
+
+    feature_cols = [col for col in bulk_data.columns if col not in ['label', 'PACLITAXEL']]
+    label_map = {0: 'Resistant', 1: 'Sensitive'}
+    color_dict = {'Sensitive': 'red', 'Resistant': 'blue'}
+
+    def get_labels_named(df):
+        return df['label'].map(label_map).values
+
+    X_bulk = bulk_data[feature_cols].values
+    X_train = bulk_train[feature_cols].values
+    X_val = bulk_val[feature_cols].values
+
+    bulk_labels_named = get_labels_named(bulk_data)
+    train_labels_named = get_labels_named(bulk_train)
+    val_labels_named = get_labels_named(bulk_val)
+
+    # -------- UMAP --------
+    reducer = umap.UMAP(n_components=2, random_state=42)
+    X_umap_bulk = reducer.fit_transform(X_bulk)
+    X_umap_train = reducer.transform(X_train)
+    X_umap_val = reducer.transform(X_val)
+
+    df_umap_bulk = pd.DataFrame(X_umap_bulk, columns=['UMAP1', 'UMAP2'])
+    df_umap_bulk['Label'] = bulk_labels_named
+    df_umap_bulk['Split'] = 'None'
+    df_umap_bulk.loc[bulk_train.index, 'Split'] = 'Train'
+    df_umap_bulk.loc[bulk_val.index, 'Split'] = 'Val'
+
+    df_umap_train = pd.DataFrame(X_umap_train, columns=['UMAP1', 'UMAP2'])
+    df_umap_train['Label'] = train_labels_named
+
+    df_umap_val = pd.DataFrame(X_umap_val, columns=['UMAP1', 'UMAP2'])
+    df_umap_val['Label'] = val_labels_named
+
+    # --------- پلات bulk (Train/Val) ----------
+    plt.figure(figsize=(8, 7))
+    for label in color_dict:
+        for split, marker in zip(['Train', 'Val', 'None'], ['o', 's', 'x']):
+            sub = df_umap_bulk[(df_umap_bulk['Label'] == label) & (df_umap_bulk['Split'] == split)]
+            if not sub.empty:
+                plt.scatter(sub['UMAP1'], sub['UMAP2'],
+                            c=color_dict[label],
+                            label=f'{label}-{split}' if split != 'None' else f'{label}-Other',
+                            s=70 if split != 'None' else 30,
+                            marker=marker,
+                            alpha=0.7,
+                            edgecolor='k' if split != 'None' else None)
+    plt.title('UMAP of All Bulk Data (Train/Val split shown)')
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "umap_bulk_split.png"), dpi=300)
+    plt.close()
+
+    # --------- پلات فقط train ----------
+    plt.figure(figsize=(6, 5))
+    for label in color_dict:
+        sub = df_umap_train[df_umap_train['Label'] == label]
+        plt.scatter(sub['UMAP1'], sub['UMAP2'],
+                    c=color_dict[label], label=label, s=70, alpha=0.7, edgecolor='k')
+    plt.title('UMAP of Train Data')
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "umap_train.png"), dpi=300)
+    plt.close()
+
+    # --------- پلات فقط validation ----------
+    plt.figure(figsize=(6, 5))
+    for label in color_dict:
+        sub = df_umap_val[df_umap_val['Label'] == label]
+        plt.scatter(sub['UMAP1'], sub['UMAP2'],
+                    c=color_dict[label], label=label, s=70, alpha=0.7, edgecolor='k')
+    plt.title('UMAP of Validation Data')
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "umap_val.png"), dpi=300)
+    plt.close()
+
+    print(f"UMAP plots for bulk data saved in {os.path.abspath(save_dir)}")
+
+
     # Split single-cell cell line data (labeled)
+    # لیبل و رنگ‌ها
     sc_cellline_labels = sc_cellline_data.obs['condition'].values
     indices = range(sc_cellline_data.shape[0])
     train_idx, val_idx = train_test_split(
@@ -72,9 +166,94 @@ def prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, de
     )
     sc_cellline_train = sc_cellline_data[train_idx, :]
     sc_cellline_val = sc_cellline_data[val_idx, :]
+    label_map = {'sensitive': 'Sensitive', 'resistant': 'Resistant'}
+    color_dict = {'Sensitive': 'red', 'Resistant': 'blue'}
+    labels_named = pd.Series(sc_cellline_data.obs['condition']).map(label_map).values
+
+    # کل دیتا
+    X_all = sc_cellline_data.X.toarray() if hasattr(sc_cellline_data.X, "toarray") else sc_cellline_data.X
+    X_train = X_all[train_idx]
+    X_val = X_all[val_idx]
+
+    labels_train = labels_named[train_idx]
+    labels_val = labels_named[val_idx]
+
+    # -------- UMAP --------
+    reducer = umap.UMAP(n_components=2, random_state=42)
+    X_umap_all = reducer.fit_transform(X_all)
+    X_umap_train = reducer.transform(X_train)
+    X_umap_val = reducer.transform(X_val)
+
+    df_umap_all = pd.DataFrame(X_umap_all, columns=['UMAP1', 'UMAP2'])
+    df_umap_all['Label'] = labels_named
+    df_umap_all['Split'] = 'None'
+    df_umap_all.loc[train_idx, 'Split'] = 'Train'
+    df_umap_all.loc[val_idx, 'Split'] = 'Val'
+
+    df_umap_train = pd.DataFrame(X_umap_train, columns=['UMAP1', 'UMAP2'])
+    df_umap_train['Label'] = labels_train
+
+    df_umap_val = pd.DataFrame(X_umap_val, columns=['UMAP1', 'UMAP2'])
+    df_umap_val['Label'] = labels_val
+
+    # --------- پلات UMAP کل دیتا (Train/Val) ----------
+    plt.figure(figsize=(8, 7))
+    for label in color_dict:
+        for split, marker in zip(['Train', 'Val', 'None'], ['o', 's', 'x']):
+            sub = df_umap_all[(df_umap_all['Label'] == label) & (df_umap_all['Split'] == split)]
+            if not sub.empty:
+                plt.scatter(sub['UMAP1'], sub['UMAP2'],
+                            c=color_dict[label],
+                            label=f'{label}-{split}' if split != 'None' else f'{label}-Other',
+                            s=70 if split != 'None' else 30,
+                            marker=marker,
+                            alpha=0.7,
+                            edgecolor='k' if split != 'None' else None)
+    plt.title('UMAP of sc_cellline_data (Train/Val split shown)')
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "umap_sc_cellline_all_split.png"), dpi=300)
+    plt.close()
+
+    # --------- پلات فقط train ----------
+    plt.figure(figsize=(6, 5))
+    for label in color_dict:
+        sub = df_umap_train[df_umap_train['Label'] == label]
+        plt.scatter(sub['UMAP1'], sub['UMAP2'],
+                    c=color_dict[label], label=label, s=70, alpha=0.7, edgecolor='k')
+    plt.title('UMAP of sc_cellline_data (Train)')
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "umap_sc_cellline_train.png"), dpi=300)
+    plt.close()
+
+    # --------- پلات فقط validation ----------
+    plt.figure(figsize=(6, 5))
+    for label in color_dict:
+        sub = df_umap_val[df_umap_val['Label'] == label]
+        plt.scatter(sub['UMAP1'], sub['UMAP2'],
+                    c=color_dict[label], label=label, s=70, alpha=0.7, edgecolor='k')
+    plt.title('UMAP of sc_cellline_data (Validation)')
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "umap_sc_cellline_val.png"), dpi=300)
+    plt.close()
+
+    print(f"UMAP plots for sc_cellline_data saved in {os.path.abspath(save_dir)}")
 
 
-    # Split sc_tumor data (unlabeled)
+
+
+
+
+    # Split sc_tumor data (labeled)
+    
     sc_tumor_labels = sc_tumor_data.obs['condition'].values
     sc_tumor_indices = range(sc_tumor_data.shape[0])
     sc_tumor_train_idx, sc_tumor_val_idx = train_test_split(
@@ -86,12 +265,94 @@ def prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, de
     sc_tumor_train = sc_tumor_data[sc_tumor_train_idx, :]
     sc_tumor_val = sc_tumor_data[sc_tumor_val_idx, :]
 
+    label_map = {'sensitive': 'Sensitive', 'resistant': 'Resistant'}
+    color_dict = {'Sensitive': 'red', 'Resistant': 'blue'}
+    labels_named = pd.Series(sc_tumor_data.obs['condition']).map(label_map).values
+
+    # داده عددی
+    X_all = sc_tumor_data.X.toarray() if hasattr(sc_tumor_data.X, "toarray") else sc_tumor_data.X
+    X_train = X_all[sc_tumor_train_idx]
+    X_val = X_all[sc_tumor_val_idx]
+
+    labels_train = labels_named[sc_tumor_train_idx]
+    labels_val = labels_named[sc_tumor_val_idx]
+
+    # -------- UMAP --------
+    reducer = umap.UMAP(n_components=2, random_state=42)
+    X_umap_all = reducer.fit_transform(X_all)
+    X_umap_train = reducer.transform(X_train)
+    X_umap_val = reducer.transform(X_val)
+
+    df_umap_all = pd.DataFrame(X_umap_all, columns=['UMAP1', 'UMAP2'])
+    df_umap_all['Label'] = labels_named
+    df_umap_all['Split'] = 'None'
+    df_umap_all.loc[sc_tumor_train_idx, 'Split'] = 'Train'
+    df_umap_all.loc[sc_tumor_val_idx, 'Split'] = 'Val'
+
+    df_umap_train = pd.DataFrame(X_umap_train, columns=['UMAP1', 'UMAP2'])
+    df_umap_train['Label'] = labels_train
+
+    df_umap_val = pd.DataFrame(X_umap_val, columns=['UMAP1', 'UMAP2'])
+    df_umap_val['Label'] = labels_val
+
+    # --------- پلات UMAP کل داده (Train/Val) ----------
+    plt.figure(figsize=(8, 7))
+    for label in color_dict:
+        for split, marker in zip(['Train', 'Val', 'None'], ['o', 's', 'x']):
+            sub = df_umap_all[(df_umap_all['Label'] == label) & (df_umap_all['Split'] == split)]
+            if not sub.empty:
+                plt.scatter(sub['UMAP1'], sub['UMAP2'],
+                            c=color_dict[label],
+                            label=f'{label}-{split}' if split != 'None' else f'{label}-Other',
+                            s=70 if split != 'None' else 30,
+                            marker=marker,
+                            alpha=0.7,
+                            edgecolor='k' if split != 'None' else None)
+    plt.title('UMAP of sc_tumor_data (Train/Val split shown)')
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "umap_sc_tumor_all_split.png"), dpi=300)
+    plt.close()
+
+    # --------- پلات فقط train ----------
+    plt.figure(figsize=(6, 5))
+    for label in color_dict:
+        sub = df_umap_train[df_umap_train['Label'] == label]
+        plt.scatter(sub['UMAP1'], sub['UMAP2'],
+                    c=color_dict[label], label=label, s=70, alpha=0.7, edgecolor='k')
+    plt.title('UMAP of sc_tumor_data (Train)')
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "umap_sc_tumor_train.png"), dpi=300)
+    plt.close()
+
+    # --------- پلات فقط validation ----------
+    plt.figure(figsize=(6, 5))
+    for label in color_dict:
+        sub = df_umap_val[df_umap_val['Label'] == label]
+        plt.scatter(sub['UMAP1'], sub['UMAP2'],
+                    c=color_dict[label], label=label, s=70, alpha=0.7, edgecolor='k')
+    plt.title('UMAP of sc_tumor_data (Validation)')
+    plt.xlabel('UMAP1')
+    plt.ylabel('UMAP2')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "umap_sc_tumor_val.png"), dpi=300)
+    plt.close()
+
+    print(f"UMAP plots for sc_tumor_data saved in {os.path.abspath(save_dir)}")
+
     # Prepare tensors for bulk data
     bulk_train_X = torch.tensor(bulk_train.drop(columns=['PACLITAXEL', 'label']).values).float().to(device)
     bulk_train_y = torch.tensor(bulk_train['label'].values).float().to(device)
     bulk_val_X = torch.tensor(bulk_val.drop(columns=['PACLITAXEL', 'label']).values).float().to(device)
     bulk_val_y = torch.tensor(bulk_val['label'].values).float().to(device)
-
+    
+    
     # Prepare tensors for single-cell cell line data
     sc_cellline_train_X = torch.tensor(sc_cellline_train.X).float().to(device)
     sc_cellline_train_y = torch.tensor(sc_cellline_train.obs['condition'] == 'sensitive').float().to(device)
@@ -105,6 +366,8 @@ def prepare_tensors(spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, de
     sc_tumor_train_y = torch.tensor(sc_tumor_train.obs['condition'] == 'sensitive').float().to(device)
     sc_tumor_val_X = torch.tensor(sc_tumor_val.X).float().to(device)
     sc_tumor_val_y = torch.tensor(sc_tumor_val.obs['condition'] == 'sensitive').float().to(device)
+   
+
 
     # Return dictionary with train and validation tensors
     return {

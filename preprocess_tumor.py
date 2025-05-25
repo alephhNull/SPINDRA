@@ -11,10 +11,9 @@ def preprocess_tumor(file_path):
     sc.pp.calculate_qc_metrics(adata, qc_vars=['mt'], percent_top=None, log1p=False, inplace=True)
     # sc.pl.violin(adata, ['n_genes_by_counts', 'total_counts', 'pct_counts_mt'], jitter=0.4, multi_panel=True)
 
-    adata = adata[(adata.obs['orig.ident'] == 'Pre_P023_t') | 
-              (adata.obs['orig.ident'] == 'Pre_P018_t')| 
-              (adata.obs['orig.ident'] == 'Pre_P025_t')| 
-              (adata.obs['orig.ident'] == 'Pre_P022_t')| 
+    # data ident 22 , 23 remove for benchmark data set  , 18 , 25 , 20 for model
+    adata = adata[ (adata.obs['orig.ident'] == 'Pre_P018_t')| 
+              (adata.obs['orig.ident'] == 'Pre_P025_t')|  
               (adata.obs['orig.ident'] == 'Pre_P020_t'),:]
 
     # Apply filters (keep)
@@ -27,7 +26,7 @@ def preprocess_tumor(file_path):
         adata.raw.var.drop("_index", axis=1, inplace=True)
 
     print('Single Cell Tumor adata final shape:', adata.shape)
-    sc.tl.pca(adata)
+    # sc.tl.pca(adata)
 
     sc.pp.neighbors(adata)
 

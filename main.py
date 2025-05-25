@@ -69,9 +69,9 @@ if __name__ == "__main__":
                        help='Visium spatial data file path')
     parser.add_argument('--library_id', type=str, default='1142243F', 
                        help='Library ID for the spatial data')
-    parser.add_argument('--num_epochs', type=int, default=1500, 
+    parser.add_argument('--num_epochs', type=int, default=2, 
                        help='Number of training epochs')
-    parser.add_argument('--pretrain_epochs', type=int, default=100, 
+    parser.add_argument('--pretrain_epochs', type=int, default=2, 
                        help='Number of pretraining epochs')
     parser.add_argument('--k', type=int, default=10, 
                        help='Number of nearest neighbors for graph construction')

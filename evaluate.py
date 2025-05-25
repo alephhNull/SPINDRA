@@ -1,6 +1,10 @@
 import torch
 import numpy as np
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, silhouette_score
+import matplotlib.pyplot as plt
+import umap
+import pandas as pd
+import os 
 
 def compute_moran_I(values, edge_index, edge_weights):
     """
@@ -84,6 +88,61 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
         bulk_accuracy = accuracy_score(bulk_val_y_np, bulk_val_pred_labels)
         bulk_auc = roc_auc_score(bulk_val_y_np, bulk_val_probs)
         bulk_f1 = f1_score(bulk_val_y_np, bulk_val_pred_labels)
+
+        
+                # داده ویژگی‌های bulk_val (مثلاً bulk_val[feature_cols].values)
+        
+        X_val = bulk_val_X.values
+
+        # اجرای UMAP روی validation
+        reducer = umap.UMAP(n_components=2, random_state=42)
+        X_umap_val = reducer.fit_transform(X_val)
+
+        # دیکشنری رنگ‌ها و نام‌ها
+        label_map = {0: 'Resistant', 1: 'Sensitive'}
+        color_dict = {'Sensitive': 'red', 'Resistant': 'blue'}
+
+        # برچسب واقعی و پیش‌بینی شده (نامی)
+        val_label_gt = pd.Series(bulk_val_y_np).map(label_map)
+        val_label_pred = pd.Series(bulk_val_pred_labels).map(label_map)
+
+        # دیتا فریم UMAP
+        df_umap_val = pd.DataFrame(X_umap_val, columns=['UMAP1', 'UMAP2'])
+        df_umap_val['GroundTruth'] = val_label_gt.values
+        df_umap_val['Predicted'] = val_label_pred.values
+
+        # ----------- پلات کنار هم -----------
+        fig, axs = plt.subplots(1, 2, figsize=(12, 6), sharex=True, sharey=True)
+
+        # نقشه ground truth
+        for label in color_dict:
+            sub = df_umap_val[df_umap_val['GroundTruth'] == label]
+            axs[0].scatter(sub['UMAP1'], sub['UMAP2'],
+                        c=color_dict[label], label=label, s=60, alpha=0.7, edgecolor='k')
+        axs[0].set_title('Validation UMAP by Ground Truth')
+        axs[0].set_xlabel('UMAP1')
+        axs[0].set_ylabel('UMAP2')
+        axs[0].legend(title='True Label')
+
+        # نقشه predicted
+        for label in color_dict:
+            sub = df_umap_val[df_umap_val['Predicted'] == label]
+            axs[1].scatter(sub['UMAP1'], sub['UMAP2'],
+                        c=color_dict[label], label=label, s=60, alpha=0.7, edgecolor='k')
+        axs[1].set_title('Validation UMAP by Predicted')
+        axs[1].set_xlabel('UMAP1')
+        axs[1].set_ylabel('UMAP2')
+        axs[1].legend(title='Predicted Label')
+
+        plt.suptitle('UMAP of Validation Set: Ground Truth vs. Predicted')
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        save_dir = "figures_prediction"
+        os.makedirs(save_dir, exist_ok=True)
+        plt.savefig(os.path.join(save_dir, "umap_val_side_by_side_gt_vs_pred.png"), dpi=300)
+        plt.show()
+
+
+
 
     # Evaluate on single-cell cell line validation set
     with torch.no_grad():
