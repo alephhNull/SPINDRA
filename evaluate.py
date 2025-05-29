@@ -1,10 +1,169 @@
 import torch
 import numpy as np
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, silhouette_score
+from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, silhouette_score , precision_score
 import matplotlib.pyplot as plt
 import umap
 import pandas as pd
 import os 
+from sklearn.metrics import balanced_accuracy_score, matthews_corrcoef, recall_score, confusion_matrix
+import seaborn as sns
+from sklearn.metrics import roc_curve, auc
+
+
+def plot_validation_summary(
+    y_true, y_pred, y_probs, X_umap, save_dir, data_name="bulk", label_map=None):
+    # --------- ساخت لیبل‌ها ---------
+    if label_map is None:
+        label_map = {0: 'Resistant', 1: 'Sensitive'}
+    color_dict = {'Sensitive': 'red', 'Resistant': 'blue'}
+
+    val_label_gt = pd.Series(y_true).map(label_map)
+    val_label_pred = pd.Series(y_pred).map(label_map)
+
+    df_umap_val = pd.DataFrame(X_umap, columns=['UMAP1', 'UMAP2'])
+    df_umap_val['GroundTruth'] = val_label_gt.values
+    df_umap_val['Predicted'] = val_label_pred.values
+
+    # --------- محاسبه متریک‌ها ---------
+    accuracy = accuracy_score(y_true, y_pred)
+    auc_val = roc_auc_score(y_true, y_probs)
+    f1 = f1_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    balanced_acc = balanced_accuracy_score(y_true, y_pred)
+    mcc = matthews_corrcoef(y_true, y_pred)
+    cm = confusion_matrix(y_true, y_pred)
+    if cm.shape == (2,2):
+        tn, fp, fn, tp = cm.ravel()
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else np.nan
+    else:
+        specificity = np.nan
+
+    # --------- ذخیره متریک‌ها در فایل متنی ---------
+    metrics_text = (
+        f"Accuracy:           {accuracy:.4f}\n"
+        f"Balanced Accuracy:  {balanced_acc:.4f}\n"
+        f"AUC:                {auc_val:.4f}\n"
+        f"Precision:          {precision:.4f}\n"
+        f"Recall:             {recall:.4f}\n"
+        f"Specificity:        {specificity:.4f}\n"
+        f"F1-score:           {f1:.4f}\n"
+        f"MCC:                {mcc:.4f}\n"
+        f"Confusion Matrix:\n{cm}\n"
+    )
+    os.makedirs(save_dir, exist_ok=True)
+    with open(os.path.join(save_dir, f"{data_name}_val_metrics.txt"), "w") as f:
+        f.write(metrics_text)
+
+    # --------- جدول متریک‌ها برای جدول و بارپلات ---------
+    metrics_dict = {
+        'Accuracy': accuracy,
+        'Balanced Accuracy': balanced_acc,
+        'AUC': auc_val,
+        'Precision': precision,
+        'Recall': recall,
+        'Specificity': specificity,
+        'F1-score': f1,
+        'MCC': mcc,
+    }
+    table_data = [[k, f"{v:.4f}"] for k, v in metrics_dict.items()]
+    names = list(metrics_dict.keys())
+    values = list(metrics_dict.values())
+
+    # --------- پلات UMAP ساده ---------
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6), sharex=True, sharey=True)
+    for label in color_dict:
+        sub = df_umap_val[df_umap_val['GroundTruth'] == label]
+        axs[0].scatter(sub['UMAP1'], sub['UMAP2'], c=color_dict[label], label=label, s=60, alpha=0.7, edgecolor='k')
+    axs[0].set_title(f'{data_name.capitalize()} UMAP by Ground Truth')
+    axs[0].set_xlabel('UMAP1')
+    axs[0].set_ylabel('UMAP2')
+    axs[0].legend(title='True Label')
+    for label in color_dict:
+        sub = df_umap_val[df_umap_val['Predicted'] == label]
+        axs[1].scatter(sub['UMAP1'], sub['UMAP2'], c=color_dict[label], label=label, s=60, alpha=0.7, edgecolor='k')
+    axs[1].set_title(f'{data_name.capitalize()} UMAP by Predicted')
+    axs[1].set_xlabel('UMAP1')
+    axs[1].set_ylabel('UMAP2')
+    axs[1].legend(title='Predicted Label')
+    plt.suptitle(f'UMAP of {data_name.capitalize()} Validation Set: Ground Truth vs. Predicted', fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig(os.path.join(save_dir, f"umap_{data_name}_val_side_by_side_gt_vs_pred.png"), dpi=300)
+    plt.close()
+
+    # --------- پلات جدول متریک‌ها ---------
+    fig, axs = plt.subplots(1, 3, figsize=(18, 6), gridspec_kw={'width_ratios': [1, 1, 0.8]})
+    # UMAP پلات‌ها مثل بالا ...
+    for label in color_dict:
+        sub = df_umap_val[df_umap_val['GroundTruth'] == label]
+        axs[0].scatter(sub['UMAP1'], sub['UMAP2'], c=color_dict[label], label=label, s=60, alpha=0.7, edgecolor='k')
+    axs[0].set_title(f'{data_name.capitalize()} UMAP by Ground Truth')
+    axs[0].set_xlabel('UMAP1')
+    axs[0].set_ylabel('UMAP2')
+    axs[0].legend(title='True Label')
+    for label in color_dict:
+        sub = df_umap_val[df_umap_val['Predicted'] == label]
+        axs[1].scatter(sub['UMAP1'], sub['UMAP2'], c=color_dict[label], label=label, s=60, alpha=0.7, edgecolor='k')
+    axs[1].set_title(f'{data_name.capitalize()} UMAP by Predicted')
+    axs[1].set_xlabel('UMAP1')
+    axs[1].set_ylabel('UMAP2')
+    axs[1].legend(title='Predicted Label')
+    axs[2].axis('off')
+    table = axs[2].table(cellText=table_data, colLabels=["Metric", "Value"], loc='center', cellLoc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(14)
+    table.scale(1.2, 2)
+    axs[2].set_title('Validation Metrics', fontsize=16, pad=25)
+    plt.suptitle(f'UMAP of {data_name.capitalize()} Validation Set: Ground Truth vs. Predicted', fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig(os.path.join(save_dir, f"umap_{data_name}_val_side_by_side_gt_vs_pred_with_metrics_table.png"), dpi=300)
+    plt.close()
+
+    # --------- بارپلات متریک‌ها ---------
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.barh(names, values, color="steelblue")
+    ax.set_xlim(0, 1.10)
+    ax.set_title("Validation Metrics")
+    ax.set_xlabel("Value")
+    for i, (v, n) in enumerate(zip(values, names)):
+        ax.text(v + 0.02, i, f"{v:.3f}", va="center", fontsize=13, color='black')
+    ax.invert_yaxis()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f"{data_name}_validation_metrics_barplot.png"), dpi=300)
+    plt.close()
+
+    # --------- ROC Curve ---------
+    fpr, tpr, _ = roc_curve(y_true, y_probs)
+    roc_auc = auc(fpr, tpr)
+    plt.figure(figsize=(5,5))
+    plt.plot(fpr, tpr, label=f"ROC curve (AUC = {roc_auc:.2f})")
+    plt.plot([0, 1], [0, 1], "k--", label="Random")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title(f"{data_name.capitalize()} Validation ROC Curve")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f"roc_curve_{data_name}_val.png"), dpi=300)
+    plt.close()
+
+    # --------- Confusion Matrix ---------
+    labels = [label_map[0], label_map[1]]
+
+    plt.figure(figsize=(4,4))
+    sns.heatmap(
+        cm, annot=True, fmt='d', cmap='Blues',
+        xticklabels=[f'Pred {lbl}' for lbl in labels],
+        yticklabels=[f'True {lbl}' for lbl in labels]
+    )
+    plt.xlabel("Predicted label")
+    plt.ylabel("True label")
+    plt.title(f"Confusion Matrix ({data_name.capitalize()} Validation)")
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f"confusion_matrix_{data_name}_val.png"), dpi=300)
+    plt.close()
+
+
+
 
 def compute_moran_I(values, edge_index, edge_weights):
     """
@@ -83,64 +242,25 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
         bulk_val_probs = torch.sigmoid(bulk_val_pred).cpu().numpy()  # Probabilities for AUC
         bulk_val_pred_labels = (bulk_val_probs > 0.5).astype(int)    # Binary predictions
         bulk_val_y_np = bulk_val_y.cpu().numpy()                     # True labels as NumPy array
-
-        # Calculate metrics for bulk
+         # Calculate metrics for bulk
         bulk_accuracy = accuracy_score(bulk_val_y_np, bulk_val_pred_labels)
         bulk_auc = roc_auc_score(bulk_val_y_np, bulk_val_probs)
         bulk_f1 = f1_score(bulk_val_y_np, bulk_val_pred_labels)
 
-        
-                # داده ویژگی‌های bulk_val (مثلاً bulk_val[feature_cols].values)
-        
-        X_val = bulk_val_X.values
+        X_val = bulk_val_X.cpu().numpy()
 
         # اجرای UMAP روی validation
         reducer = umap.UMAP(n_components=2, random_state=42)
         X_umap_val = reducer.fit_transform(X_val)
 
-        # دیکشنری رنگ‌ها و نام‌ها
-        label_map = {0: 'Resistant', 1: 'Sensitive'}
-        color_dict = {'Sensitive': 'red', 'Resistant': 'blue'}
-
-        # برچسب واقعی و پیش‌بینی شده (نامی)
-        val_label_gt = pd.Series(bulk_val_y_np).map(label_map)
-        val_label_pred = pd.Series(bulk_val_pred_labels).map(label_map)
-
-        # دیتا فریم UMAP
-        df_umap_val = pd.DataFrame(X_umap_val, columns=['UMAP1', 'UMAP2'])
-        df_umap_val['GroundTruth'] = val_label_gt.values
-        df_umap_val['Predicted'] = val_label_pred.values
-
-        # ----------- پلات کنار هم -----------
-        fig, axs = plt.subplots(1, 2, figsize=(12, 6), sharex=True, sharey=True)
-
-        # نقشه ground truth
-        for label in color_dict:
-            sub = df_umap_val[df_umap_val['GroundTruth'] == label]
-            axs[0].scatter(sub['UMAP1'], sub['UMAP2'],
-                        c=color_dict[label], label=label, s=60, alpha=0.7, edgecolor='k')
-        axs[0].set_title('Validation UMAP by Ground Truth')
-        axs[0].set_xlabel('UMAP1')
-        axs[0].set_ylabel('UMAP2')
-        axs[0].legend(title='True Label')
-
-        # نقشه predicted
-        for label in color_dict:
-            sub = df_umap_val[df_umap_val['Predicted'] == label]
-            axs[1].scatter(sub['UMAP1'], sub['UMAP2'],
-                        c=color_dict[label], label=label, s=60, alpha=0.7, edgecolor='k')
-        axs[1].set_title('Validation UMAP by Predicted')
-        axs[1].set_xlabel('UMAP1')
-        axs[1].set_ylabel('UMAP2')
-        axs[1].legend(title='Predicted Label')
-
-        plt.suptitle('UMAP of Validation Set: Ground Truth vs. Predicted')
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        save_dir = "figures_prediction"
-        os.makedirs(save_dir, exist_ok=True)
-        plt.savefig(os.path.join(save_dir, "umap_val_side_by_side_gt_vs_pred.png"), dpi=300)
-        plt.show()
-
+        plot_validation_summary(
+        y_true=bulk_val_y_np,
+        y_pred=bulk_val_pred_labels,
+        y_probs=bulk_val_probs,
+        X_umap=X_umap_val,
+        save_dir="figures_prediction/bulk",
+        data_name="bulk"
+            )
 
 
 
@@ -156,6 +276,19 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
         sc_cellline_auc = roc_auc_score(sc_cellline_val_y_np, sc_cellline_val_probs)
         sc_cellline_f1 = f1_score(sc_cellline_val_y_np, sc_cellline_val_pred_labels)
 
+        reducer = umap.UMAP(n_components=2, random_state=42)
+        X_val_sc = sc_cellline_val_X.cpu().numpy()
+        X_umap_val_sc = reducer.fit_transform(X_val_sc)
+
+    plot_validation_summary(
+        y_true=sc_cellline_val_y_np,
+        y_pred=sc_cellline_val_pred_labels,
+        y_probs=sc_cellline_val_probs,
+        X_umap=X_umap_val_sc,
+        save_dir="figures_prediction/sc_cellline",
+        data_name="sc_cellline"
+        )
+
     # Evaluate on single-cell tumor validation set
     with torch.no_grad():
         sc_tumor_val_pred = drug_predictor(sc_tumor_z).squeeze()
@@ -167,6 +300,22 @@ def evaluate_model(bulk_encoder, sc_encoder, drug_predictor, spatial_encoder, tu
         sc_tumor_accuracy = accuracy_score(sc_tumor_val_y_np, sc_tumor_val_pred_labels)
         sc_tumor_auc = roc_auc_score(sc_tumor_val_y_np, sc_tumor_val_probs)
         sc_tumor_f1 = f1_score(sc_tumor_val_y_np, sc_tumor_val_pred_labels)
+
+        reducer = umap.UMAP(n_components=2, random_state=42)
+        X_val_tumor = sc_tumor_val_X.cpu().numpy()
+        X_umap_val_tumor = reducer.fit_transform(X_val_tumor)
+
+
+        plot_validation_summary(
+        y_true=sc_tumor_val_y_np,
+        y_pred=sc_tumor_val_pred_labels,
+        y_probs=sc_tumor_val_probs,
+        X_umap=X_umap_val_tumor,
+        save_dir="figures_prediction/sc_tumor",
+        data_name="sc_tumor"
+            )
+
+
 
     # Compute Moran's I for spatial domain predictions
     with torch.no_grad():
