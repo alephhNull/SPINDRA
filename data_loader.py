@@ -39,6 +39,11 @@ def load_data(spatial_file_path, sc_tumor_file_path, sc_cellline_file_path):
     sc_tumor_data = sc_tumor_data[:, common_genes]
     sc_cellline_data = sc_cellline_data[:, common_genes]
 
+     # Save common genes for use in other projects/pipelines
+    with open("common_genes.txt", "w") as f:
+        for gene in common_genes:
+            f.write(gene + "\n")
+
     return spatial_data, bulk_data, sc_tumor_data, sc_cellline_data, common_genes
 
 
