@@ -11,6 +11,7 @@ from trainer import train_model, predict_spatial
 from visualize import visualize_and_evaluate
 from cell_communication import analyze_cell_communication
 from preprocess_bulk import preprocess_bulk
+from benchmark import preprocess_benchmark
 from preprocess_visium_spatial import preprocess_visium_spatial
 from preprocess_cellline import preprocess_celline
 from preprocess_tumor import preprocess_tumor
